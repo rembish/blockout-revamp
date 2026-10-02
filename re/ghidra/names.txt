@@ -135,3 +135,4 @@ ds:4e48 rotq_head
 ds:4e4c rotq_tail
 ds:44dc move_steps
 ds:4dfe rot_steps
+824a reset_score          # score=0, score_X=len+wid

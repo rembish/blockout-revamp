@@ -29,7 +29,7 @@ STUBS = {
     0x8be5: 'play_sound',        # blocking speaker effects (timing modelled in the core)
     0x44ca: 'screen_layout',     # sets screen size/colours; harness sets 41cd/40b9 itself
     0x99a4: 'set_clip', 0x2a6d: 'draw_pit_frame', 0x2fa9: 'draw_pit_grid', 0x23f4: 'draw_panel',
-    0x824a: 'load_hiscores', 0x7c3b: 'find_hiscore_table',   # file I/O; only sets hiscore
+    0x7c3b: 'find_hiscore_table',   # file I/O; only loads the hall of fame table
     0x3d2d: 'game_over',         # waits for Enter/Esc; harness stops at game over instead
 }
 

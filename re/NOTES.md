@@ -112,7 +112,8 @@ score = (score + ((A+B+C) >> 1) + 1) % 1000000      (32-bit signed, Turbo C LDIV
   13→90, 14→85, 15→85, 16→80, 17→80, 18→75.
 - `class` (`ds:2b10`, 41 words): 0,0,1,1,1,1,2,2,3,3,3,0,3,4,5,5,5,2,5,8,4,5,5,7,9,9,2,5,7,5,
   9,8,6,7,6,9,7,7,9,8,8. `pieceK[c] = 5*(c+1)` (`ds:2b7c`).
-- `X` = long at `ds:4e62`. It is never written anywhere in the code, so it is always 0:
-  the n² term and the empty-pit bonus are dead. **[verify]**
+- `X` = long at `ds:4e62` = `len + wid`, set together with `score = 0` by `824a` at game
+  start. (An early linear-sweep scan missed this write; use Ghidra xrefs, not linear
+  disassembly, to find writers.)
 - `drop_height` = piece z (`ds:0df4`) when Space was pressed, 0 if it just fell.
 - `pit_empty` = bottom layer empty after clearing (`5276`).

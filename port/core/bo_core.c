@@ -275,12 +275,11 @@ static int pit_empty(const bo_game *g)
     return 1;
 }
 
-/* add_score (8266). The original also multiplies an n^2 and an empty-pit term by a
-   long at ds:4e62 that is never written, so both are always 0. Kept as such. */
+/* add_score (8266). X (ds:4e62) is set to len+wid at game start (824a). */
 static void add_score(bo_game *g)
 {
     const bo_setup *s = &g->setup;
-    const int32_t X = 0;
+    const int32_t X = s->len + s->wid;
     int32_t L = (int16_t)((g->level + 1) * (g->level + 17));
     int32_t n = g->layers_cleared;
     int32_t dk = bo_depth_factor[s->dep], sk = bo_set_factor[s->blockset];
