@@ -39,7 +39,7 @@ static int live(const bo_game *g)
 /* keys for a plan, 3 per frame */
 static int plan_keys(int r1, int r2, int dx, int dy, uint16_t *out)
 {
-    static const char rk[6] = { 'q', 'w', 'e', 'a', 's', 'd' };
+    static const uint16_t rk[6] = { 'q', 'w', 'e', 'a', 's', 'd' };
     int n = 0;
     if (r1 >= 0) out[n++] = rk[r1];
     if (r2 >= 0) out[n++] = rk[r2];
