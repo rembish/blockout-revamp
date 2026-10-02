@@ -20,7 +20,6 @@ static float volume = 0.22f;
 static float buf[MAXS];
 static int n;
 static double phase; /* 0..1 of the current square wave */
-static int level;    /* manual speaker bit for the PWM tune */
 
 static void emit_tone(double freq, double secs)
 {
