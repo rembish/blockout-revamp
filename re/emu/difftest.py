@@ -4,8 +4,8 @@ usage: difftest.py [n_runs] [first_seed]
 
 Covered: movement, diagonals, rotations, hard drop, gravity, landing, layer clears,
 scoring, level ups, spawn/game over, practice mode, both CPU classes, any frame rate.
-Not covered (code-read only): pause (P), sound toggle (O), abort (Esc), blocking sound
-durations, hall of fame.
+Not covered (code-read only): pause (P), sound toggle (O), abort (Esc), the blocking
+sound states and their resume paths (sound lengths are 0 here), hall of fame.
 """
 import os, random, subprocess, sys, tempfile
 from bl2emu import Game

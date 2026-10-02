@@ -111,8 +111,9 @@ int hof_insert(hof_table *t, int32_t score)
     t->e[row].score = score;
     time_t now = time(NULL);
     struct tm *lt = localtime(&now);
-    snprintf(t->e[row].date, sizeof t->e[row].date, "%02d-%02d-%04d",
-             (lt->tm_mon + 1) % 100, lt->tm_mday % 100, (lt->tm_year + 1900) % 10000);
+    snprintf(t->e[row].date, sizeof t->e[row].date, "%02u-%02u-%04u",
+             (unsigned)(lt->tm_mon + 1) % 100u, (unsigned)lt->tm_mday % 100u,
+             (unsigned)(lt->tm_year + 1900) % 10000u);
     return row;
 }
 
@@ -137,9 +138,18 @@ int hof_save(const hof_table *t)
         if (c == 0) { found = 1; break; }
         if (c > 0) break;
     }
-    int32_t off;
+    int32_t off = found ? rd32(idx + pos + 8) : -1;
+    if (found && (off < 0 || off > TABLE_SIZE * (MAX_TABLES - 1))) {
+        /* a damaged or foreign index: drop the bad key and store the table anew */
+        memmove(idx + pos, idx + pos + KEY_SIZE, (size_t)(il - pos - KEY_SIZE));
+        il -= KEY_SIZE;
+        found = 0;
+    }
     if (found) {
-        off = rd32(idx + pos + 8);
+        if (off + TABLE_SIZE > dl) {          /* DAT shorter than the index says: extend */
+            memset(dat + dl, 0, (size_t)(off + TABLE_SIZE - dl));
+            dl = off + TABLE_SIZE;
+        }
     } else {
         if (il + KEY_SIZE > IDX_HDR + KEY_SIZE * MAX_TABLES) { free(idx); free(dat); return 0; }
         off = dl;

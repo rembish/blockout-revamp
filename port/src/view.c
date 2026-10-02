@@ -82,9 +82,8 @@ static void draw_pit(const bo_game *g, float lw)
     float L = g->setup.len, W = g->setup.wid, D = g->setup.dep;
     /* walls and floor: one quad per layer band for a depth gradient */
     for (int z = 0; z < D; z++) {
-        float s0 = 0.10f + 0.22f * z / D, s1 = 0.10f + 0.22f * (z + 1) / D;
-        rgba c0 = rgba_mix(C_BG0, C_BG1, s0 * 2), c1 = rgba_mix(C_BG0, C_BG1, s1 * 2);
-        (void)c1;
+        float s0 = 0.10f + 0.22f * z / D;
+        rgba c0 = rgba_mix(C_BG0, C_BG1, s0 * 2);
         float zl = z, zh = z + 1;
         const float wall[4][4][3] = {
             {{0, 0, zl}, {L, 0, zl}, {L, 0, zh}, {0, 0, zh}},

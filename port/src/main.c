@@ -67,7 +67,20 @@ static struct {
     int hof_mode, hof_row;
     char name[HOF_NAME + 1];
     int last_game_valid;
+    bo_setup hi_key;            /* cache for the panel's high score */
+    int32_t hi_value;
+    int hi_valid;
 } A;
+
+static int32_t cached_best(const bo_setup *s)
+{
+    if (!A.hi_valid || memcmp(&A.hi_key, s, sizeof *s)) {
+        A.hi_key = *s;
+        A.hi_value = hof_best(s);
+        A.hi_valid = 1;
+    }
+    return A.hi_value;
+}
 
 /* ---- persistence ------------------------------------------------------- */
 
@@ -145,7 +158,7 @@ static void start_game(int mode)
     A.practice = mode == BO_MODE_PRACTICE;
     A.demo = mode == BO_MODE_DEMO;
     bo_init(&A.game, &A.setup, mode, 1, bios_time_of_day());
-    A.game.hiscore = hof_best(&A.setup);
+    A.game.hiscore = cached_best(&A.setup);
     A.t0 = A.now;
     A.ticks_done = A.frames_done = 0;
     A.held_key = 0;
@@ -374,6 +387,7 @@ static void menu_key(const SDL_Keysym *k)
         else if (k->sym == SDLK_RETURN || k->sym == SDLK_KP_ENTER) {
             hof_set_name(&A.hof, A.hof_row, A.name);
             if (!hof_save(&A.hof)) toast("Could not save the hall of fame");
+            A.hi_valid = 0;
             A.hof_mode = HOF_VIEW;
             SDL_StopTextInput();
         } else if (k->sym == SDLK_ESCAPE) {        /* 3baf: a cancelled entry is discarded */
@@ -541,7 +555,7 @@ static void render(void)
             preview.setup = A.setup;
             preview.level = A.setup.level;
             preview.state = BO_S_DONE;
-            preview.hiscore = hof_best(&A.setup);
+            preview.hiscore = cached_best(&A.setup);
         }
         view_game(bg, A.w, A.h, &fx);
         ui_dim(pit, 0.55f);
@@ -635,7 +649,8 @@ static void frame(void)
         }
     }
     if (A.scr == S_GAME) advance_game();
-    else if (A.scr == S_MAIN && A.now - A.idle_since > IDLE_DEMO) start_game(BO_MODE_DEMO);
+    else if (A.now - A.idle_since > IDLE_DEMO && !(A.scr == S_HOF && A.hof_mode == HOF_ENTRY))
+        start_game(BO_MODE_DEMO);               /* every menu has the idle flag set */
     A.clear_flash *= 0.9f;
     render();
 #ifdef __EMSCRIPTEN__
