@@ -76,9 +76,14 @@ static void small_row(box a, int menu)
 
 void touch_layout(const view_layout_t *L, int screen)
 {
-    int64_t keep[MAXB];
+    /* finger ids are arbitrary (negative on iOS in a 32-bit build), so carry a flag, not a sentinel */
+    int64_t keep_finger[MAXB];
+    int keep_held[MAXB];
     int keep_n = nb;
-    for (int i = 0; i < nb; i++) keep[i] = btn[i].held ? btn[i].finger : -1;
+    for (int i = 0; i < nb; i++) {
+        keep_held[i] = btn[i].held;
+        keep_finger[i] = btn[i].finger;
+    }
     nb = 0;
     if (screen == TOUCH_NONE || L->left.w <= 0) return;
     float row = L->portrait ? L->left.h * 0.13f : L->left.w * 0.16f;
@@ -93,9 +98,9 @@ void touch_layout(const view_layout_t *L, int screen)
     }
     /* layouts are rebuilt every frame; keep held state for buttons still under a finger */
     for (int i = 0; i < nb && i < keep_n; i++)
-        if (keep[i] >= 0) {
+        if (keep_held[i]) {
             btn[i].held = 1;
-            btn[i].finger = keep[i];
+            btn[i].finger = keep_finger[i];
         }
 }
 

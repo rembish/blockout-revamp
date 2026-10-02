@@ -793,10 +793,14 @@ static void finger_down(float nx, float ny, int64_t finger)
     }
 }
 
-static void finger_up(int64_t finger)
+static void finger_up(int64_t finger, SDL_TouchID device)
 {
-    uint16_t key = touch_release(finger);
-    if (key && key == A.held_key && finger == A.held_finger) A.held_key = 0;
+    touch_release(finger);
+    if (finger == A.held_finger) A.held_key = 0;
+    if (SDL_GetNumTouchFingers(device) == 0) { /* nothing on the screen: nothing can be held */
+        touch_release_all();
+        A.held_key = 0;
+    }
 }
 
 static void mouse(int x, int y, int click)
@@ -861,7 +865,7 @@ static void frame(void)
             break;
         case SDL_TEXTINPUT: text_input(e.text.text); break;
         case SDL_FINGERDOWN: finger_down(e.tfinger.x, e.tfinger.y, (int64_t)e.tfinger.fingerId); break;
-        case SDL_FINGERUP: finger_up((int64_t)e.tfinger.fingerId); break;
+        case SDL_FINGERUP: finger_up((int64_t)e.tfinger.fingerId, e.tfinger.touchId); break;
         case SDL_MOUSEMOTION: mouse(e.motion.x, e.motion.y, 0); break;
         case SDL_MOUSEBUTTONDOWN:
             audio_resume();
