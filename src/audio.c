@@ -35,7 +35,6 @@ static void emit_tone(double freq, double secs)
 static void emit_level(int on, double secs)
 {
     int k = (int)(secs * RATE + 0.5);
-    level = on;
     for (int i = 0; i < k && n < MAXS; i++) buf[n++] = on ? 1.f : -1.f;
 }
 

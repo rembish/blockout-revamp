@@ -4,6 +4,12 @@
 
 #include <SDL.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+#define BO_PRINTF(fmt, args) __attribute__((format(printf, fmt, args)))
+#else
+#define BO_PRINTF(fmt, args)
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

@@ -385,7 +385,7 @@ static void draw_gauge(const bo_game *g, box b, float s)
     (void)s;
 }
 
-static void stat(box b, float y, float s, const char *label, const char *value, rgba vc)
+static void stat_box(box b, float y, float s, const char *label, const char *value, rgba vc)
 {
     font_draw(b.x + b.w / 2, y, s * 0.42f, C_LABEL, ALIGN_CENTER, label);
     gfx_round_rect(b.x + b.w * 0.08f, y + s * 0.6f, b.w * 0.84f, s * 1.05f, s * 0.2f, rgb_hex(0x060a18, 1));
@@ -410,18 +410,18 @@ static void draw_panel(const bo_game *g, box b)
     draw_logo(b, b.y + s * 0.6f, s * 1.6f);
     float y = b.y + s * 3.9f;
     snprintf(buf, sizeof buf, "%ld", (long)g->score);
-    stat(b, y, s, "SCORE", buf, C_ACCENT);
+    stat_box(b, y, s, "SCORE", buf, C_ACCENT);
     y += s * 2.2f;
     snprintf(buf, sizeof buf, "%ld", (long)g->cubes_played);
-    stat(b, y, s, "CUBES PLAYED", buf, C_VALUE);
+    stat_box(b, y, s, "CUBES PLAYED", buf, C_VALUE);
     y += s * 2.2f;
     snprintf(buf, sizeof buf, "%ld", (long)g->hiscore);
-    stat(b, y, s, "HIGH SCORE", buf, C_VALUE);
+    stat_box(b, y, s, "HIGH SCORE", buf, C_VALUE);
     y += s * 2.2f;
     snprintf(buf, sizeof buf, "%dx%dx%d", g->setup.len, g->setup.wid, g->setup.dep);
-    stat(b, y, s, "PIT", buf, rgb_hex(0xffb347, 1));
+    stat_box(b, y, s, "PIT", buf, rgb_hex(0xffb347, 1));
     y += s * 2.2f;
-    stat(b, y, s, "BLOCK SET", set_names[g->setup.blockset], rgb_hex(0xffb347, 1));
+    stat_box(b, y, s, "BLOCK SET", set_names[g->setup.blockset], rgb_hex(0xffb347, 1));
     y += s * 2.4f;
     float ks = s * 0.36f;
     rgba kc = rgba_alpha(C_LABEL, 0.75f);

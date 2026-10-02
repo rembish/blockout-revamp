@@ -24,7 +24,7 @@ typedef struct {
 } ui_menu;
 
 void ui_menu_clear(ui_menu *m, const char *title);
-ui_item *ui_add(ui_menu *m, char hotkey, const char *fmt, ...);
+ui_item *ui_add(ui_menu *m, char hotkey, const char *fmt, ...) BO_PRINTF(3, 4);
 void ui_menu_draw(ui_menu *m, box area, float t);
 int ui_hit(const ui_menu *m, float x, float y); /* item under point or -1 */
 
