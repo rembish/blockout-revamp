@@ -69,8 +69,6 @@ static struct {
     int last_game_valid;
 } A;
 
-static void bot_frame(bo_game *g);
-
 /* ---- persistence ------------------------------------------------------- */
 
 /* BLOCKOUT.SET: "05-26-89\0", a word, then the setup words (len, wid, dep, set, level,
@@ -165,7 +163,12 @@ static void enter_menu(int scr)
 
 static void game_finished(void)
 {
-    if (A.demo || A.practice) { enter_menu(S_MAIN); return; }   /* no hall of fame */
+    if (A.demo) {                       /* st_demo: a finished demo starts another */
+        if (A.game.aborted) enter_menu(S_MAIN);
+        else start_game(BO_MODE_DEMO);
+        return;
+    }
+    if (A.practice) { enter_menu(S_MAIN); return; }              /* no hall of fame */
     hof_load(&A.setup, &A.hof);
     A.hof_row = hof_insert(&A.hof, A.game.score);
     if (A.hof_row >= 0) {
@@ -433,7 +436,7 @@ static uint16_t map_key(const SDL_Keysym *k)
 
 static void game_key_down(const SDL_Keysym *k)
 {
-    if (A.demo) { A.game.state = BO_S_DONE; return; }   /* any key ends the demo */
+    if (A.demo) { A.game.aborted = 1; A.game.state = BO_S_DONE; return; }   /* any key ends it */
     uint16_t key = map_key(k);
     if (!key) return;
     bo_key(&A.game, key);
@@ -462,85 +465,11 @@ static void advance_game(void)
             bo_key(&A.game, A.held_key);
             A.next_repeat += REPEAT_RATE;
         }
-        if (A.demo) bot_frame(&A.game);
         bo_frame(&A.game);
         if (A.game.ev_cleared) A.clear_flash = 1;
         if (A.game.ev_sound >= 0) audio_play(A.game.ev_sound);
     }
     if (A.game.state == BO_S_DONE) game_finished();
-}
-
-/* ---- demo player -------------------------------------------------------- */
-/* Stand-in for the original attract-mode AI: searches placements on copies of the core
-   and feeds keys like a player would. */
-
-static int bot_height(const bo_game *g)
-{
-    int h = 0;
-    for (int z = 0; z < g->setup.dep; z++) if (g->layer_count[z]) h = z + 1;
-    return h;
-}
-
-static int bot_holes(const bo_game *g)
-{
-    int holes = 0;
-    for (int x = 0; x < g->setup.len; x++)
-        for (int y = 0; y < g->setup.wid; y++) {
-            int seen = 0;
-            for (int z = g->setup.dep - 1; z >= 0; z--) {
-                if (g->cell[x][y][z]) seen = 1;
-                else if (seen) holes++;
-            }
-        }
-    return holes;
-}
-
-static uint16_t bot_keys[24];
-static int bot_nkeys, bot_ki, bot_wait;
-
-static void bot_plan(const bo_game *g)
-{
-    static const char rk[6] = {'q', 'w', 'e', 'a', 's', 'd'};
-    int best = -(1 << 30);
-    uint16_t keys[24];
-    bot_nkeys = 0;
-    for (int r1 = -1; r1 < 6; r1++)
-        for (int r2 = -1; r2 < (r1 < 0 ? 0 : 6); r2++)
-            for (int dx = -g->setup.len; dx <= g->setup.len; dx++)
-                for (int dy = -g->setup.wid; dy <= g->setup.wid; dy++) {
-                    int n = 0;
-                    if (r1 >= 0) keys[n++] = (uint16_t)rk[r1];
-                    if (r2 >= 0) keys[n++] = (uint16_t)rk[r2];
-                    for (int i = 0; i < abs(dx); i++) keys[n++] = dx > 0 ? BO_K_RIGHT : BO_K_LEFT;
-                    for (int i = 0; i < abs(dy); i++) keys[n++] = dy > 0 ? BO_K_UP : BO_K_DOWN;
-                    if (n > 14) continue;
-                    static bo_game c;
-                    c = *g;
-                    c.sound_on = 0;
-                    for (int i = 0; i < n; i++) bo_key(&c, keys[i]);
-                    bo_key(&c, BO_K_SPACE);
-                    for (int f = 0; f < 400 && !c.ev_landed && c.state != BO_S_GAME_OVER; f++) {
-                        bo_tick(&c);
-                        bo_frame(&c);
-                    }
-                    int v = c.layers_cleared * 1000 - bot_holes(&c) * 60 - bot_height(&c) * 25 - n;
-                    if (c.state == BO_S_GAME_OVER) v -= 1000000;
-                    if (v > best) { best = v; bot_nkeys = n; memcpy(bot_keys, keys, sizeof keys); }
-                }
-    bot_keys[bot_nkeys++] = BO_K_SPACE;
-    bot_ki = 0;
-    bot_wait = 12;
-}
-
-static void bot_frame(bo_game *g)
-{
-    if (g->state == BO_S_GAME_OVER) return;
-    if (g->ev_spawned || g->frame <= 1) bot_plan(g);
-    if (bot_wait > 0) { bot_wait--; return; }
-    if (bot_ki < bot_nkeys && g->state == BO_S_PLAY && !g->kb_count) {
-        bo_key(g, bot_keys[bot_ki++]);
-        bot_wait = bot_ki == bot_nkeys - 1 ? 18 : 6;
-    }
 }
 
 /* ---- rendering ------------------------------------------------------------- */
@@ -652,7 +581,7 @@ static void render(void)
 static void mouse(int x, int y, int click)
 {
     if (A.scr == S_GAME) {
-        if (click && A.demo) A.game.state = BO_S_DONE;
+        if (click && A.demo) { A.game.aborted = 1; A.game.state = BO_S_DONE; }
         return;
     }
     if (A.scr == S_HELP) {
@@ -747,7 +676,6 @@ static int shot_mode(int argc, char **argv)
                 bo_key(&A.game, (uint16_t)kv);
                 k += n; if (*k == ',') k++;
             }
-            if (A.demo) bot_frame(&A.game);
             bo_frame(&A.game);
         }
         A.frames_done = frames;

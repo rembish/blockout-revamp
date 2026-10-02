@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     bo_init(&g, &s, mode, fast, bios);
     for (int i = 0; i < nfill; i++) bo_fill_cell(&g, fill[3 * i], fill[3 * i + 1], fill[3 * i + 2]);
     long f = 0, max_frames = argc > 2 ? atol(argv[2]) : 2000000;
-    while (g.state == BO_S_PLAY || g.state == BO_S_DROP_WAIT || g.state == BO_S_LAND_WAIT) {
+    while (g.state == BO_S_PLAY || g.state == BO_S_DROP_WAIT || g.state == BO_S_LAND_WAIT || g.state == BO_S_DEMO) {
         if (++f > max_frames) break;
         for (int t = ticks_at(f - 1, fps); t < ticks_at(f, fps); t++) bo_tick(&g);
         while (ki < nk && kf[ki] == f) bo_key(&g, (uint16_t)kk[ki++]);

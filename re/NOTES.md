@@ -117,3 +117,45 @@ score = (score + ((A+B+C) >> 1) + 1) % 1000000      (32-bit signed, Turbo C LDIV
   disassembly, to find writers.)
 - `drop_height` = piece z (`ds:0df4`) when Space was pressed, 0 if it just fell.
 - `pit_empty` = bottom layer empty after clearing (`5276`).
+
+## Demo / attract mode (`st_demo` 16f5)
+
+Started from the menu (Demo) or after 0x444 ticks (60 s) idle in a menu. `game_init` in
+mode 1, weights `w[z] = dep+1-z` (`0e24`), then per piece: `spawn_piece`, plan (`130e`),
+perform (`162d`). No gravity, no `play_piece` (so no level-ups, no key flush, and
+`drop_height` keeps whatever the last real game left in it).
+
+- Plan: for each of 24 rotation sequences (`ds:0478`, `{n, rot×n}`), simulate the
+  rotations with wall kicks, slide the piece to the low x/y corner (teleport if it is
+  entirely above the stack), then sweep every x/y position, drop it and score it with
+  `0ec3`: `-60` per completed layer, `+16·z` per cube, `+w[z]` per empty side neighbour,
+  `+16·w[z]` if the cell below is empty; `w/4 - 7` on nearly full layers. A pruning
+  threshold (starts at -4, set to the last drop depth, `-4` per sequence) rejects shallow
+  drops. Lowest score wins.
+- Perform: each rotation, then one-cell steps towards the target (the last step is a
+  zero move, which still plays a full move animation), hard drop, land, each followed by
+  `wait_animations`.
+- Game over: wait 0x5b ticks or a key; with no key, a new demo starts.
+
+## Hall of fame (`3c33`)
+
+After every game in mode 0, including Esc aborts; not in practice or demo.
+One table per (min(len,wid), max(len,wid), depth, block set), 10 entries, inserted
+before the first strictly lower score (ties go below). Name up to 10 chars padded with
+`.`, date `MM-DD-YYYY`. The tune (sound 3) plays during name entry; Esc discards it.
+`BLSCORE.IDX` = `"05-26-89\0"` + sorted 12-byte keys `{len,wid,dep,set,int32 offset}`,
+`BLSCORE.DAT` = 262-byte tables `{int16 n; 10×{name[11], int32 score, date[11]}}`.
+
+## Sounds (`8be5`)
+
+All blocking. Frequencies in Hz (`PIT divisor = 1193180/f`), durations in calibrated delay
+units (~7.6 µs: the only value that puts the tune on B4/A4/F#4/E4).
+
+| # | when | routine |
+|---|---|---|
+| 0 | layers cleared and pit empty | 5 warbles around 6000…3600 Hz |
+| 1 | layers cleared | sweep 2700→50 Hz, step 220 |
+| 2 | level up | fast warble 700↔5300 Hz ×2 |
+| 3 | hall of fame entry | 8 PWM notes (periods 265/300/360/410 units) |
+
+`8ffd` (a fifth sound) and the ISR speaker toggle are never used.

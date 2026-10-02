@@ -60,7 +60,34 @@ def make_script(rng):
     return hdr, keys
 
 
+def run_demo_original(hdr, max_frames):
+    """st_demo (16f5): game_init in mode 1, then spawn / plan (130e) / perform (162d)."""
+    g = Game(fps=hdr['fps'], cpu_class=14 if hdr['fast'] else 1)
+    g.call(0xe39d, hdr['seed'])
+    g.bios_ticks = hdr['bios']
+    g.setup(hdr['len'], hdr['wid'], hdr['dep'], hdr['set'], hdr['level'], hdr['rot'], 1)
+    g.w16(0x379c, g.alloc(2 * hdr['dep']))
+    g.call(0x0e24)
+    plan = g.alloc(8)
+    g.max_frames = max_frames
+    while not g.stopped:
+        over, _ = g.call(0x550a)
+        if over or g.stopped: break
+        g.call(0x130e, plan)
+        g.call(0x162d, plan)
+    return g.log
+
+
+def demo_script(rng):
+    hdr = dict(len=rng.randint(3, 7), wid=rng.randint(3, 7), dep=rng.randint(6, 18), set=rng.randint(0, 2),
+               level=rng.randint(0, 9), rot=rng.randint(0, 2), mode=1, fps=rng.choice([30, 60, 70]),
+               fast=rng.choice([0, 1]), seed=rng.randint(0, 65535), bios=rng.randint(0, 1 << 20), fill=[])
+    return hdr, []
+
+
 def run_original(hdr, keys, max_frames):
+    if hdr['mode'] == 1:
+        return run_demo_original(hdr, max_frames)
     g = Game(fps=hdr['fps'], cpu_class=14 if hdr['fast'] else 1)
     g.call(0xe39d, hdr['seed'])
     g.bios_ticks = hdr['bios']
@@ -98,8 +125,9 @@ def main():
     bad = 0
     for run in range(first, first + n):
         rng = random.Random(run)
-        hdr, keys = bot_script(rng) if run % 2 else make_script(rng)
-        maxf = keys[-1][0] + 400 if keys else 3000
+        kind = run % 3
+        hdr, keys = (demo_script(rng) if kind == 0 else bot_script(rng) if kind == 1 else make_script(rng))
+        maxf = keys[-1][0] + 400 if keys else 6000
         orig = run_original(hdr, keys, maxf)
         port = run_port(hdr, keys, os.path.join(tempfile.gettempdir(), f'bo_script_{run}.txt'), maxf)
         m = min(len(orig), len(port))

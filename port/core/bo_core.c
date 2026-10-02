@@ -339,17 +339,161 @@ static void piece_prologue(bo_game *g)
     g->drop_height = 0;
 }
 
+/* ---- demo AI --------------------------------------------------------- */
+
+/* Rotation sequences tried by the planner: bo_demo_seqs (ds:0478), {n, rot x n}... */
+#define demo_seqs bo_demo_seqs
+#define DEMO_SEQ_BYTES 0x46
+
+typedef struct { int16_t x[5], y[5], z[5]; } cubes5;
+
+static int pit_free(const bo_game *g, int x, int y, int z)
+{
+    /* the original reads past the pit edge here; those reads never change the outcome */
+    if (x < 0 || y < 0 || z < 0 || x >= g->setup.len || y >= g->setup.wid || z >= g->setup.dep) return 0;
+    return !g->cell[x][y][z];
+}
+
+/* 10b6 / 111a / 117e: shift all cubes along one axis, undo if any lands on a cube */
+static int demo_shift(const bo_game *g, cubes5 *c, int axis, int d)
+{
+    int16_t *v = axis == 0 ? c->x : axis == 1 ? c->y : c->z;
+    int i;
+    for (i = 0; i < bo_ncubes(g); i++) {
+        v[i] += d;
+        if (!pit_free(g, c->x[i], c->y[i], c->z[i])) break;
+    }
+    if (i == bo_ncubes(g)) return 1;
+    for (; i >= 0; i--) v[i] -= d;
+    return 0;
+}
+
+/* 0ec3: lower is better */
+static int demo_eval(bo_game *g, const cubes5 *c)
+{
+    const bo_setup *s = &g->setup;
+    int cells = s->len * s->wid, score = 0, n = bo_ncubes(g);
+    for (int i = n - 1; i >= 0; i--) {
+        g->cell[c->x[i]][c->y[i]][c->z[i]] = 1;
+        if (++g->layer_count[c->z[i]] == cells) score -= 60;
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        int x = c->x[i], y = c->y[i], z = c->z[i], w = g->demo_weight[z];
+        score += z * 16;
+        if (g->layer_count[z] >= cells - 1) { score -= 7; w /= 4; }
+        if (x > 0 && !g->cell[x - 1][y][z]) score += w;
+        if (x + 1 < s->len && !g->cell[x + 1][y][z]) score += w;
+        if (y > 0 && !g->cell[x][y - 1][z]) score += w;
+        if (y + 1 < s->wid && !g->cell[x][y + 1][z]) score += w;
+        if (z > 0 && !g->cell[x][y][z - 1]) score += w * 16;
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        g->cell[c->x[i]][c->y[i]][c->z[i]] = 0;
+        g->layer_count[c->z[i]]--;
+    }
+    return score;
+}
+
+static void demo_cubes(const bo_game *g, const bo_pose *p, cubes5 *c)   /* 0e6d */
+{
+    int16_t v[3];
+    for (int i = bo_ncubes(g) - 1; i >= 0; i--) {
+        transform(p, cube(g, i), v);
+        c->x[i] = v[0]; c->y[i] = v[1]; c->z[i] = v[2];
+    }
+}
+
+/* 130e */
+static void demo_plan(bo_game *g)
+{
+    const bo_setup *s = &g->setup;
+    int n = bo_ncubes(g), best = 0x7fff, thresh = -4;
+    g->demo_seq = 0; g->demo_dx = g->demo_dy = 0;
+    int height = s->dep;
+    while (height > 0 && g->layer_count[height - 1] == 0) height--;
+    for (int off = 0; off < DEMO_SEQ_BYTES; off += demo_seqs[off] + 1) {
+        bo_pose p = g->pose;
+        for (int r = 0; r < demo_seqs[off]; r++) {                   /* 11e2 */
+            bo_pose np;
+            int16_t kick[3];
+            compose(&p, &bo_rotations[rotation_index(&p, demo_seqs[off + 1 + r])], &np);
+            if (piece_fits(g, &np, 1, kick)) {
+                p = np;
+                for (int k = 0; k < 3; k++) p.a[k].pos += kick[k];
+            }
+        }
+        cubes5 c = {{0}, {0}, {0}}, orig, row, saved;
+        demo_cubes(g, &p, &c);
+        orig = c;
+        int maxx = 0, minx = s->len, maxy = 0, miny = s->wid, minz = s->dep;
+        for (int i = n - 1; i >= 0; i--) {
+            if (maxx < c.x[i]) maxx = c.x[i];
+            if (c.x[i] < minx) minx = c.x[i];
+            if (maxy < c.y[i]) maxy = c.y[i];
+            if (c.y[i] < miny) miny = c.y[i];
+            if (c.z[i] < minz) minz = c.z[i];
+        }
+        if (height - 1 < minz) {               /* above the stack: jump to the corner */
+            demo_shift(g, &c, 0, -minx); maxx -= minx;
+            demo_shift(g, &c, 1, -miny); maxy -= miny;
+            demo_shift(g, &c, 2, height - minz);
+            minz = height;
+        } else {
+            while (minx != 0 && demo_shift(g, &c, 0, -1)) { maxx--; minx--; }
+            while (miny != 0 && demo_shift(g, &c, 1, -1)) { maxy--; miny--; }
+        }
+        int ok;
+        do {
+            row = c;
+            int y = maxy;
+            do {
+                saved = c;                                           /* 126a */
+                int drop = 0;
+                for (int k = minz; k > 0 && demo_shift(g, &c, 2, -1); k--) drop++;
+                int v;
+                if (drop < thresh) v = 0x7fff;
+                else { v = demo_eval(g, &c); thresh = (int16_t)drop; }
+                c = saved;                                           /* 12ce */
+                if (v < best) {
+                    best = v;
+                    g->demo_seq = (int16_t)off;
+                    g->demo_dx = (int16_t)(c.x[0] - orig.x[0]);
+                    g->demo_dy = (int16_t)(c.y[0] - orig.y[0]);
+                }
+                ok = demo_shift(g, &c, 1, 1);
+            } while (ok && ++y < s->wid);
+            c = row;
+            ok = demo_shift(g, &c, 0, 1);
+        } while (ok && ++maxx < s->len);
+        thresh -= 4;
+    }
+    g->demo_phase = 0;
+    g->demo_ri = 0;
+}
+
+static void demo_weights(bo_game *g)   /* 0e24 */
+{
+    g->demo_weight[0] = (int16_t)(g->setup.dep + 1);
+    for (int z = 1; z < g->setup.dep; z++) {
+        g->demo_weight[z] = (int16_t)(g->demo_weight[z - 1] - 1);
+        if (g->demo_weight[z] < 0) g->demo_weight[z] = g->demo_weight[z - 1];
+    }
+}
+
 /* ---- the frame loop ---------------------------------------------------- */
 
-enum { R_NONE, R_AFTER_DROP, R_LAND, R_AFTER_LAND_SOUND, R_AFTER_LEVEL_SOUND, R_AFTER_PAUSE };
+enum { R_NONE, R_AFTER_DROP, R_LAND, R_AFTER_LAND_SOUND, R_AFTER_LEVEL_SOUND, R_AFTER_PAUSE,
+       R_DEMO_SPAWN, R_DEMO_ACT };
 
 void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bios_ticks)
 {
     uint32_t seed = g->rand_seed;
+    int16_t drop_height = g->drop_height;
     int sound_len[4];
     memcpy(sound_len, g->sound_len, sizeof sound_len);
     memset(g, 0, sizeof *g);
     g->rand_seed = seed;
+    g->drop_height = drop_height;   /* only play_piece resets it; the demo inherits it */
     memcpy(g->sound_len, sound_len, sizeof sound_len);
     g->setup = *s;
     g->mode = mode;
@@ -364,6 +508,14 @@ void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bio
     if (g->rot_steps < 1) g->rot_steps = 1;
     if (g->rot_steps > 15) g->rot_steps = 15;
     g->resume_at = R_NONE;
+    if (mode == BO_MODE_DEMO) {
+        demo_weights(g);
+        g->state = BO_S_DEMO;
+        g->resume_at = R_DEMO_SPAWN;
+        bo_frame(g);            /* run up to the first animation wait */
+        g->frame = 0;
+        return;
+    }
     if (spawn_piece(g)) { g->state = BO_S_GAME_OVER; return; }
     piece_prologue(g);
     g->state = BO_S_PLAY;
@@ -387,6 +539,7 @@ int bo_frame(bo_game *g)
     case BO_S_SOUND:     goto sound;
     case BO_S_PAUSED:    goto paused;
     case BO_S_GAME_OVER: goto game_over;
+    case BO_S_DEMO:      goto demo;
     default:             return g->state;
     }
 
@@ -466,6 +619,7 @@ land:
     if (g->sound_ticks) { g->resume_at = R_AFTER_LAND_SOUND; g->state = BO_S_SOUND; return g->state; }
 after_land_sound:
     add_score(g);
+    if (g->mode == BO_MODE_DEMO) goto demo_spawn;
     if (spawn_piece(g)) { flush_keys(g); g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
     piece_prologue(g);
     if (g->sound_ticks) { g->resume_at = R_AFTER_LEVEL_SOUND; g->state = BO_S_SOUND; return g->state; }
@@ -474,7 +628,7 @@ after_land_sound:
 
 sound:                  /* the original blocks in the speaker routine; ticks keep running */
     if (g->sound_ticks > 0) return g->state;
-    g->state = BO_S_PLAY;
+    g->state = g->mode == BO_MODE_DEMO ? BO_S_DEMO : BO_S_PLAY;
     if (g->resume_at == R_AFTER_LAND_SOUND) goto after_land_sound;
     if (g->resume_at == R_AFTER_LEVEL_SOUND) { g->countdown = g->mode == BO_MODE_PRACTICE ? 0 : g->delay; return g->state; }
     return g->state;
@@ -487,6 +641,42 @@ paused:                                             /* 6106 */
             goto key_loop;
         }
     return g->state;
+
+demo:                   /* 162d: each action is followed by wait_animations */
+    if (g->resume_at == R_DEMO_SPAWN) goto demo_spawn;
+    g->frame++;
+    anim_move_step(g);
+    anim_rot_step(g);
+    if (anims_busy(g)) return g->state;
+demo_act:
+    for (;;) {
+        if (g->demo_phase == 0) {                       /* rotations */
+            if (g->demo_ri < demo_seqs[g->demo_seq]) {
+                rotate_piece(g, demo_seqs[g->demo_seq + 1 + g->demo_ri++]);
+            } else { g->demo_phase = 1; continue; }
+        } else if (g->demo_phase == 1) {                /* step towards the target */
+            int sx = g->demo_dx > 0 ? 1 : g->demo_dx < 0 ? -1 : 0;
+            int sy = g->demo_dy > 0 ? 1 : g->demo_dy < 0 ? -1 : 0;
+            g->demo_dx -= sx; g->demo_dy -= sy;
+            move_piece(g, sx, sy, 0);
+            if (!sx && !sy) g->demo_phase = 2;
+        } else if (g->demo_phase == 2) {
+            hard_drop(g);
+            g->demo_phase = 3;
+        } else {
+            land_lock(g);
+            if (g->sound_ticks) { g->resume_at = R_AFTER_LAND_SOUND; g->state = BO_S_SOUND; return g->state; }
+            add_score(g);
+        demo_spawn:
+            g->resume_at = R_DEMO_ACT;
+            g->state = BO_S_DEMO;
+            if (spawn_piece(g)) { g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
+            demo_plan(g);
+            continue;
+        }
+        if (anims_busy(g)) return g->state;
+    }
+    goto demo_act;
 
 game_over:                                          /* game_over (3d2d) */
     if (g->mode == BO_MODE_DEMO) {

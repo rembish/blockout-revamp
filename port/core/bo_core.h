@@ -39,6 +39,7 @@ enum bo_state {
     BO_S_SOUND,       /* a blocking PC-speaker effect is playing */
     BO_S_PAUSED,
     BO_S_GAME_OVER,   /* "game over" shown; waiting for Enter/Esc */
+    BO_S_DEMO,        /* demo: the AI is waiting for an animation to finish */
     BO_S_DONE,        /* game finished; see `aborted`. Mode 0 goes to the hall of fame
                          either way, practice mode returns to the menu */
 };
@@ -93,6 +94,11 @@ typedef struct bo_game {
     /* keyboard */
     uint16_t keybuf[BO_KEYBUF];
     int kb_head, kb_count;
+
+    /* demo AI (st_demo 16f5: plan 130e, perform 162d) */
+    int16_t demo_seq, demo_dx, demo_dy;   /* chosen rotation sequence and offset */
+    int16_t demo_phase, demo_ri;
+    int16_t demo_weight[BO_MAX_DEP];      /* 0e24 */
 
     int state;
     int aborted;                /* finished by Esc rather than game over */

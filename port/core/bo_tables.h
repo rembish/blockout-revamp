@@ -28,6 +28,7 @@ extern const int32_t bo_class_factor[10];
 extern const int16_t bo_pit_max[3];
 extern const int16_t bo_pit_min[3];
 extern const int16_t bo_presets[3][4];              /* len, wid, dep, block set */
-extern const int16_t bo_default_setup[6];           /* len, wid, dep, set, level, rot speed */
+extern const int16_t bo_default_setup[6];
+extern const int8_t  bo_demo_seqs[0x46];           /* demo AI: {n, rot x n}... */           /* len, wid, dep, set, level, rot speed */
 
 #endif

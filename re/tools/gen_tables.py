@@ -52,6 +52,8 @@ pre = [words(0x0d64 + 8 * k, 4) for k in range(3)]
 out.append('const int16_t bo_presets[3][4] = {\n    %s\n};' % ',\n    '.join('{ ' + ', '.join(map(str, p)) + ' }' for p in pre))
 out.append(f'const int16_t bo_default_setup[6] = {{ {arr(words(0x0d8f, 6))} }};')
 
+out.append(f'const int8_t bo_demo_seqs[0x46] = {{ {arr(bytes_(0x0478, 0x46), 24)} }};')
+
 dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'port', 'core', 'bo_tables.c')
 open(dst, 'w').write('\n'.join(out) + '\n')
 print('wrote', os.path.normpath(dst))
