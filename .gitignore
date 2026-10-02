@@ -4,3 +4,6 @@ re/ghidra/headless.log
 re/ghidra/bl2_decomp.c
 __pycache__/
 build/
+port/build/
+port/build-web/
+build-web/

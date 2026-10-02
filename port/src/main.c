@@ -7,6 +7,7 @@
 #include <time.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 #include "../core/bo_core.h"
@@ -145,6 +146,15 @@ static void frame(void)
 {
     SDL_Event e;
     A.now = seconds();
+#ifdef __EMSCRIPTEN__
+    {   /* follow the canvas' CSS size */
+        double cw, ch;
+        int ww, wh;
+        emscripten_get_element_css_size("#canvas", &cw, &ch);
+        SDL_GetWindowSize(A.win, &ww, &wh);
+        if ((int)cw != ww || (int)ch != wh) SDL_SetWindowSize(A.win, (int)cw, (int)ch);
+    }
+#endif
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
         case SDL_QUIT: A.running = 0; break;

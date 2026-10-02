@@ -359,7 +359,7 @@ static void draw_gauge(const bo_game *g, box b, float s)
     float ch = (bot - top) / D, x0 = b.x + b.w * 0.2f, cw = b.w * 0.6f;
     for (int z = 0; z < g->setup.dep; z++) {
         float y = bot - (z + 1) * ch;
-        rgba c = g->layer_count[z] ? layer_colors[z % 7] : rgba_alpha(C_EDGE, 0.35f);
+        rgba c = g->layer_count[z] ? layer_colors[z % 7] : rgba_mix(C_PANEL, C_EDGE, 0.35f);
         gfx_round_rect(x0, y + ch * 0.1f, cw, ch * 0.8f, ch * 0.18f, c);
     }
     (void)s;

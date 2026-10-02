@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>BlockOut</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05070f; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+  #status { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: #7f9cd9; font: 16px system-ui, sans-serif; letter-spacing: .1em; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+<div id="status">LOADING…</div>
+<script>
+  var Module = {
+    canvas: document.getElementById('canvas'),
+    setStatus: function (t) { document.getElementById('status').textContent = t ? t.toUpperCase() : ''; },
+    onRuntimeInitialized: function () { document.getElementById('status').textContent = ''; },
+  };
+  window.addEventListener('keydown', function (e) {
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].indexOf(e.key) >= 0)
+      e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('load', function () { Module.canvas.focus(); });
+  document.addEventListener('pointerdown', function () { Module.canvas.focus(); });
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
