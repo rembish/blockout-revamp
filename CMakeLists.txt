@@ -20,7 +20,16 @@ add_custom_command(
 add_library(bocore STATIC core/bo_core.c core/bo_tables.c)
 target_include_directories(bocore PUBLIC core)
 
-add_executable(blockout src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c third_party/stb_truetype_impl.c ${FONT_C})
+option(BO_VENDOR_SDL "Build SDL2 from source and link it statically (for redistributable binaries)" OFF)
+
+set(BO_GUI_FLAG "")
+if(WIN32)
+  set(BO_GUI_FLAG WIN32)
+elseif(APPLE)
+  set(BO_GUI_FLAG MACOSX_BUNDLE)
+endif()
+
+add_executable(blockout ${BO_GUI_FLAG} src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c third_party/stb_truetype_impl.c ${FONT_C})
 target_link_libraries(blockout PRIVATE bocore)
 
 if(EMSCRIPTEN)
@@ -30,10 +39,34 @@ if(EMSCRIPTEN)
     --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
   set_target_properties(blockout PROPERTIES SUFFIX ".html")
 else()
-  find_package(SDL2 REQUIRED)
-  target_link_libraries(blockout PRIVATE SDL2::SDL2 m)
+  if(BO_VENDOR_SDL)
+    include(FetchContent)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL2
+      URL https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz)
+    FetchContent_MakeAvailable(SDL2)
+    target_link_libraries(blockout PRIVATE SDL2::SDL2-static)
+  else()
+    find_package(SDL2 REQUIRED)
+    target_link_libraries(blockout PRIVATE SDL2::SDL2)
+  endif()
   if(TARGET SDL2::SDL2main)
     target_link_libraries(blockout PRIVATE SDL2::SDL2main)
+  endif()
+  if(NOT WIN32)
+    target_link_libraries(blockout PRIVATE m)
+  endif()
+  if(MINGW AND BO_VENDOR_SDL)
+    target_link_options(blockout PRIVATE -static)   # no libgcc/winpthread DLLs to ship
+  endif()
+  if(APPLE)
+    set_target_properties(blockout PROPERTIES
+      MACOSX_BUNDLE_BUNDLE_NAME "BlockOut"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "org.blockout.revamp"
+      MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0")
   endif()
 endif()
 

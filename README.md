@@ -52,6 +52,16 @@ distributed. The files the tools were written against:
 - `BLOCKOUT.SET` holds saved settings. `BLSCORE.DAT` / `BLSCORE.IDX` (Hall of Fame)
   are created by the game.
 
+## Downloads
+
+- **Play in the browser:** the GitHub Pages build of this repository.
+- **Windows, macOS, Linux:** pick the latest release, or the artifacts of the newest
+  "Binaries" workflow run under Actions. Every build is self-contained (SDL is linked in).
+  - Windows: unzip and run `blockout.exe`.
+  - macOS: unzip and open `blockout.app`. It is not notarised, so the first time
+    right-click → Open (or `xattr -dr com.apple.quarantine blockout.app`).
+  - Linux: `tar xzf blockout-linux-x64.tar.gz && ./blockout/blockout` (x86-64, glibc 2.35+).
+
 ## Playing
 
 | Key | Action |
