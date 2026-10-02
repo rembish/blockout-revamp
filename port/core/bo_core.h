@@ -118,6 +118,9 @@ void bo_tick(bo_game *g);
 void bo_key(bo_game *g, uint16_t key);
 int  bo_frame(bo_game *g);      /* returns g->state */
 
+/* testing: occupy a pit cell (call right after bo_init) */
+void bo_fill_cell(bo_game *g, int x, int y, int z);
+
 /* helpers for frontends */
 void bo_piece_cells(const bo_game *g, const bo_pose *p, int16_t out[][3]);
 int  bo_ncubes(const bo_game *g);

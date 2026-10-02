@@ -369,6 +369,11 @@ void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bio
     g->state = BO_S_PLAY;
 }
 
+void bo_fill_cell(bo_game *g, int x, int y, int z)
+{
+    if (!g->cell[x][y][z]) { g->cell[x][y][z] = 1; g->layer_count[z]++; }
+}
+
 int bo_frame(bo_game *g)
 {
     int k;

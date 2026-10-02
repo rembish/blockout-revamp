@@ -14,12 +14,17 @@ int main(int argc, char **argv)
     bo_setup s; int mode, fps, fast; unsigned seed, bios;
     if (fscanf(fp, "%hd %hd %hd %hd %hd %hd %d %d %d %u %u", &s.len, &s.wid, &s.dep,
                &s.blockset, &s.level, &s.rot_speed, &mode, &fps, &fast, &seed, &bios) != 11) return 1;
+    int nfill = 0;
+    static int fill[3 * 7 * 7 * 18];
+    if (fscanf(fp, "%d", &nfill) != 1) return 1;
+    for (int i = 0; i < 3 * nfill; i++) if (fscanf(fp, "%d", &fill[i]) != 1) return 1;
     static long kf[100000]; static unsigned kk[100000]; int nk = 0, ki = 0;
     while (nk < 100000 && fscanf(fp, "%ld %x", &kf[nk], &kk[nk]) == 2) nk++;
 
     static bo_game g;
     bo_srand(&g, (uint16_t)seed);
     bo_init(&g, &s, mode, fast, bios);
+    for (int i = 0; i < nfill; i++) bo_fill_cell(&g, fill[3 * i], fill[3 * i + 1], fill[3 * i + 2]);
     long f = 0, max_frames = argc > 2 ? atol(argv[2]) : 2000000;
     while (g.state == BO_S_PLAY || g.state == BO_S_DROP_WAIT || g.state == BO_S_LAND_WAIT) {
         if (++f > max_frames) break;
@@ -29,6 +34,7 @@ int main(int argc, char **argv)
         for (int i = 0; i < 3; i++) printf(" %d %d %d", g.pose.a[i].axis, g.pose.a[i].sign, g.pose.a[i].pos);
         printf(" %d %ld %ld %d\n", g.countdown, (long)g.score, (long)g.cubes_played, g.level);
         bo_frame(&g);
+        if (g.ev_cleared) fprintf(stderr, "clear %d at %ld\n", g.ev_cleared, f);
     }
     printf("end %d %ld %ld %d\n", g.state, (long)g.score, (long)g.cubes_played, g.level);
     return 0;
