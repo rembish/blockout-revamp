@@ -98,7 +98,7 @@ ds:44a8 video_mode
 53b0 clear_and_redraw
 8266 add_score
 3d2d game_over
-5237 wait_key_release
+5237 flush_keys
 5d3a anim_move_step
 776f anim_rot_step
 7479 redraw_if_dirty

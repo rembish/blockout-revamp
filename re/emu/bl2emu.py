@@ -17,15 +17,20 @@ SENTINEL = 0xfff0          # return address inside CS; reaching it ends a call
 STACK_TOP = 0xfffe          # SS = DS, small model
 HEAP = 0x5000              # scratch area in DGROUP (beyond BSS end 0x4f94)
 
-# Functions that only draw or make noise. Replaced with an immediate `ret`.
+# Routines replaced with an immediate `ret`. Each one was checked: it writes nothing the
+# game logic reads (only video memory, palette, projection buffers or the speaker).
 STUBS = {
-    0x660f: 'project_piece', 0x2125: 'draw_piece', 0x7449: 'flip', 0x2712: 'draw_text',
+    0x660f: 'project_piece',     # vertex projection into screen buffers
+    0x2125: 'draw_piece', 0x7449: 'flip', 0x2712: 'draw_text',
     0x179d: 'draw_cubes_played', 0x17be: 'draw_hiscore', 0x17d8: 'draw_level',
-    0x19c0: 'draw_score', 0x1989: 'draw_rot_keys', 0x367f: 'redraw_pit', 0x38b3: 'pal1',
-    0x8be5: 'play_sound', 0x5237: 'wait_key_release', 0x180e: 'draw_depth_gauge',
-    0x44ca: 'screen_layout', 0x99a4: 'set_clip', 0x2a6d: 'draw_pit_frame', 0x2fa9: 'draw_pit_grid',
-    0x23f4: 'draw_panel', 0x824a: 'load_hiscores', 0x7c3b: 'find_hiscore_table',
-    0x3d2d: 'game_over',
+    0x19c0: 'draw_score', 0x1989: 'draw_rot_keys', 0x180e: 'draw_depth_gauge',
+    0x367f: 'redraw_pit',        # redraws settled cubes; reads pit only
+    0x38b3: 'palette_flash',
+    0x8be5: 'play_sound',        # blocking speaker effects (timing modelled in the core)
+    0x44ca: 'screen_layout',     # sets screen size/colours; harness sets 41cd/40b9 itself
+    0x99a4: 'set_clip', 0x2a6d: 'draw_pit_frame', 0x2fa9: 'draw_pit_grid', 0x23f4: 'draw_panel',
+    0x824a: 'load_hiscores', 0x7c3b: 'find_hiscore_table',   # file I/O; only sets hiscore
+    0x3d2d: 'game_over',         # waits for Enter/Esc; harness stops at game over instead
 }
 
 
@@ -58,6 +63,7 @@ class BL2:
             0xb880: lambda e, a: e.alloc(a[0]),                      # malloc(n)
             0xdd29: lambda e, a: e.alloc(a[0] * a[1], zero=True),     # calloc(n, size)
             0x5b5a: lambda e, a: e.cpu_class,                         # cpu_speed_class
+            0x5237: lambda e, a: e.keys.clear(),                      # flush_keys
         }
         self.cpu_class = 14
         for a in self.pyfuncs:
@@ -128,7 +134,7 @@ class BL2:
         sp -= 2; self.w16(sp, SENTINEL)
         mu.reg_write(UC_X86_REG_SP, sp)
         mu.reg_write(UC_X86_REG_BP, 0)
-        mu.emu_start(CS * 16 + addr, CS * 16 + SENTINEL, count=50_000_000)
+        mu.emu_start(CS * 16 + addr, CS * 16 + SENTINEL)
         return mu.reg_read(UC_X86_REG_AX), mu.reg_read(UC_X86_REG_DX)
 
 
@@ -149,6 +155,8 @@ class Game(BL2):
         self.fps = fps
         self.frame = 0
         self.script = {}          # frame -> [key words]
+        self.max_frames = 1 << 30
+        self.stopped = False
         self.log = []
         self.mu.hook_add(UC_HOOK_CODE, self._frame, begin=CS * 16 + 0x5d3a, end=CS * 16 + 0x5d3a)
 
@@ -157,6 +165,10 @@ class Game(BL2):
 
     def _frame(self, mu, addr, size, _):
         self.frame += 1
+        if self.frame > self.max_frames:
+            self.stopped = True
+            mu.emu_stop()
+            return
         for _ in range(self.ticks_at(self.frame) - self.ticks_at(self.frame - 1)):
             self.bios_ticks += 1
             c = self.r16(0x4e6c)

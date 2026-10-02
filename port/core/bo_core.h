@@ -39,7 +39,8 @@ enum bo_state {
     BO_S_SOUND,       /* a blocking PC-speaker effect is playing */
     BO_S_PAUSED,
     BO_S_GAME_OVER,   /* "game over" shown; waiting for Enter/Esc */
-    BO_S_DONE,        /* game finished (game over or aborted) */
+    BO_S_DONE,        /* game finished; see `aborted`. Mode 0 goes to the hall of fame
+                         either way, practice mode returns to the menu */
 };
 
 enum bo_sound { BO_SND_PIT_CLEAR = 0, BO_SND_LAYER = 1, BO_SND_LEVEL = 2, BO_SND_TUNE = 3 };
@@ -94,6 +95,7 @@ typedef struct bo_game {
     int kb_head, kb_count;
 
     int state;
+    int aborted;                /* finished by Esc rather than game over */
     int resume_at;              /* where a wait/sound/pause continues */
     int16_t paused_countdown;
     int sound_on;

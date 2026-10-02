@@ -20,16 +20,15 @@ int main(int argc, char **argv)
     static bo_game g;
     bo_srand(&g, (uint16_t)seed);
     bo_init(&g, &s, mode, fast, bios);
-    long f = 0;
+    long f = 0, max_frames = argc > 2 ? atol(argv[2]) : 2000000;
     while (g.state == BO_S_PLAY || g.state == BO_S_DROP_WAIT || g.state == BO_S_LAND_WAIT) {
-        f++;
+        if (++f > max_frames) break;
         for (int t = ticks_at(f - 1, fps); t < ticks_at(f, fps); t++) bo_tick(&g);
         while (ki < nk && kf[ki] == f) bo_key(&g, (uint16_t)kk[ki++]);
         printf("%ld %d", f, g.piece);
         for (int i = 0; i < 3; i++) printf(" %d %d %d", g.pose.a[i].axis, g.pose.a[i].sign, g.pose.a[i].pos);
         printf(" %d %ld %ld %d\n", g.countdown, (long)g.score, (long)g.cubes_played, g.level);
         bo_frame(&g);
-        if (f > 2000000) break;
     }
     printf("end %d %ld %ld %d\n", g.state, (long)g.score, (long)g.cubes_played, g.level);
     return 0;

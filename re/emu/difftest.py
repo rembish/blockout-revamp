@@ -1,6 +1,11 @@
 """Differential test: original BL2.OVL (emulated) vs port/core on random input scripts.
 
 usage: difftest.py [n_runs] [first_seed]
+
+Covered: movement, diagonals, rotations, hard drop, gravity, landing, layer clears,
+scoring, level ups, spawn/game over, practice mode, both CPU classes, any frame rate.
+Not covered (code-read only): pause (P), sound toggle (O), abort (Esc), blocking sound
+durations, hall of fame.
 """
 import os, random, subprocess, sys, tempfile
 from bl2emu import Game
@@ -16,7 +21,9 @@ KEYS = [0x4800, 0x5000, 0x4b00, 0x4d00, 0x4700, 0x4900, 0x4f00, 0x5100,
 def make_script(rng):
     L, W = rng.randint(3, 7), rng.randint(3, 7)
     D = rng.randint(6, 18)
-    hdr = dict(len=L, wid=W, dep=D, set=rng.randint(0, 2), level=rng.randint(4, 9),
+    if rng.random() < 0.15: L, W, D = 3, 3, 6          # small pit: fills up, game over
+    hdr = dict(len=L, wid=W, dep=D, set=rng.randint(0, 2),
+               level=rng.randint(0, 3) if rng.random() < 0.25 else rng.randint(4, 9),
                rot=rng.randint(0, 2), mode=rng.choice([0, 0, 0, 3]), fps=rng.choice([15, 30, 60, 70]),
                fast=rng.choice([0, 1]), seed=rng.randint(0, 65535), bios=rng.randint(0, 1 << 20))
     keys, f = [], 1
@@ -37,19 +44,20 @@ def run_original(hdr, keys, max_frames):
     g.bios_ticks = hdr['bios']
     for f, k in keys: g.script.setdefault(f, []).append(k)
     g.setup(hdr['len'], hdr['wid'], hdr['dep'], hdr['set'], hdr['level'], hdr['rot'], hdr['mode'])
-    while g.frame < max_frames:
+    g.max_frames = max_frames
+    while not g.stopped:
         over, _ = g.call(0x550a)
-        if over: break
+        if over or g.stopped: break
         r, _ = g.call(0x55a7)
         if r == 1: break
     return g.log
 
 
-def run_port(hdr, keys, path):
+def run_port(hdr, keys, path, max_frames):
     with open(path, 'w') as fp:
         fp.write('%(len)d %(wid)d %(dep)d %(set)d %(level)d %(rot)d %(mode)d %(fps)d %(fast)d %(seed)d %(bios)d\n' % hdr)
         for f, k in keys: fp.write('%d %x\n' % (f, k))
-    out = subprocess.run([REPLAY, path], capture_output=True, text=True, check=True).stdout.split('\n')
+    out = subprocess.run([REPLAY, path, str(max_frames)], capture_output=True, text=True, check=True).stdout.split('\n')
     return [l for l in out if l and not l.startswith('end')]
 
 
@@ -64,7 +72,7 @@ def main():
         hdr, keys = make_script(rng)
         maxf = keys[-1][0] + 400 if keys else 3000
         orig = run_original(hdr, keys, maxf)
-        port = run_port(hdr, keys, os.path.join(tempfile.gettempdir(), f'bo_script_{run}.txt'))
+        port = run_port(hdr, keys, os.path.join(tempfile.gettempdir(), f'bo_script_{run}.txt'), maxf)
         m = min(len(orig), len(port))
         diff = next((i for i in range(m) if orig[i] != port[i]), None)
         if diff is None and len(port) != len(orig):

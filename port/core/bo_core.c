@@ -316,10 +316,14 @@ static void land_lock(bo_game *g)
     }
 }
 
-/* play_piece (55a7) prologue: level-up check and fall timer */
+/* flush_keys (5237): discard the BIOS type-ahead buffer */
+static void flush_keys(bo_game *g) { g->kb_count = 0; }
+
+/* play_piece (55a7) prologue: key flush, level-up check and fall timer */
 static void piece_prologue(bo_game *g)
 {
     const bo_setup *s = &g->setup;
+    flush_keys(g);
     g->h = s->dep;
     g->delay = bo_fall_delay[g->level];
     g->dropped = 0;
@@ -398,7 +402,7 @@ key_loop:                                           /* LAB_5831 */
                 return g->state;
             }
             break;
-        case BO_K_ESC: g->state = BO_S_DONE; return g->state;
+        case BO_K_ESC: g->aborted = 1; g->state = BO_S_DONE; return g->state;
         case BO_K_SPACE:
             g->drop_height = g->pose.a[2].pos;
             g->h -= (int16_t)hard_drop(g);
@@ -458,7 +462,7 @@ land:
     if (g->sound_ticks) { g->resume_at = R_AFTER_LAND_SOUND; g->state = BO_S_SOUND; return g->state; }
 after_land_sound:
     add_score(g);
-    if (spawn_piece(g)) { g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
+    if (spawn_piece(g)) { flush_keys(g); g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
     piece_prologue(g);
     if (g->sound_ticks) { g->resume_at = R_AFTER_LEVEL_SOUND; g->state = BO_S_SOUND; return g->state; }
     g->state = BO_S_PLAY;
