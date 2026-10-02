@@ -1,0 +1,6 @@
+# Ghidra project and generated output (regenerate with re/ghidra/run.sh)
+re/ghidra/proj/
+re/ghidra/headless.log
+re/ghidra/bl2_decomp.c
+__pycache__/
+build/
