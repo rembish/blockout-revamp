@@ -1,0 +1,137 @@
+# ---- startup / states (setjmp state machine, jmpbuf ds:3748, table ds:0264) ----
+03b2 main
+0369 goto_state              # longjmp(state_jmpbuf, n)
+045c fatal_exit
+58e5 st_main_menu            # state 5
+065a st_change_setup         # state 1
+16f5 st_demo                 # state 2: attract mode with AI player
+4ec1 st_help                 # state 3: controls help with spinning block
+2cd1 st_quit_prompt          # state 4
+6258 st_play                 # state 6
+8907 st_choose_setup         # state 7: presets
+8c28 st_start_game           # state 8: mode=0, -> state 6
+91e1 st_start_practice       # state 9: mode=3, -> state 6
+# ---- timing ----
+919e isr_timer_1c            # INT 1Ch: --countdown(ds:4e6c), ++ticks(ds:44c4), speaker toggle
+91d2 set_countdown
+91dd get_countdown
+8c38 calibrate_delay_loop
+4085 hw_init_shutdown        # 0=hook INT 1Ch/5, 1=restore
+# ---- pieces ----
+3e94 new_piece
+0b46 piece_bbox
+6e32 bios_ticks              # biostime(0,0)
+6e3e seed_rng                # srand(time(NULL))
+# ---- display helpers ----
+179d draw_cubes_played
+17be draw_hiscore
+17d8 draw_level
+1989 draw_rot_keys
+19c0 draw_score
+# ---- Turbo C RTL ----
+b325 exit
+b699 farmalloc
+b880 malloc
+d8d1 free
+d773 farfree
+d9c7 _VideoInt
+de30 getdate
+de44 gettime
+df10 getvect
+df22 setvect
+e388 sprintf_like
+e39d srand
+e3ae rand
+e3f6 movedata_like
+e795 setjmp
+e89b time
+effe biostime
+efde bdos
+c9d1 LXMUL
+e1ba LMOD_like
+# ---- data ----
+ds:0264 state_table
+ds:3748 state_jmpbuf
+ds:36ba rand_seed
+ds:4e6c countdown
+ds:44c4 ticks
+ds:4e6e speaker_on
+ds:0da4 game_mode            # 0 game, 1 demo, 3 practice, 4 help-demo
+ds:3830 setup                # {len,wid,dep,blockset,?,rotspeed}
+ds:3836 setup_blockset
+ds:383a setup_rotspeed
+ds:44ea cur_blockset
+ds:2968 blockset_table       # {count,ptr to piece index list} x3(+DIY)
+ds:288a piece_table          # {ncubes, ptr to cube coords}
+ds:0db2 cur_piece_id
+ds:0da6 cur_piece_ncubes
+ds:0da8 cur_piece_cubes
+ds:41df cubes_played
+ds:41eb hiscore
+ds:40b7 level
+ds:40a7 score
+ds:3845 rot_key_sel
+ds:40ad pit_len
+ds:40af pit_wid
+ds:40b1 pit_dep
+ds:44a8 video_mode
+# ---- play loop ----
+427d game_init
+550a spawn_piece             # returns 1 = game over
+55a7 play_piece              # returns 1 = aborted (Esc)
+442b game_cleanup
+3c33 hall_of_fame_entry
+0336 choose_start_level
+5c24 move_piece              # (dx,dy,dz) -> 0 ok / 1 blocked
+5de7 hard_drop               # returns distance
+5dd6 wait_animations
+78b2 rotate_piece            # k = 0..5 (QWEASD)
+7862 rotation_axis
+2af2 piece_fits              # (pose, kick?, out kick vec)
+2991 cube_check              # 0 ok / 1 out of bounds (+push) / 2 occupied
+91f1 transform_cube
+2e93 copy_pose
+2ea7 compose_pose
+37cb land_piece
+52ae clear_layers            # returns any cleared, n -> ds:4e60
+5276 pit_bottom_empty
+53b0 clear_and_redraw
+8266 add_score
+3d2d game_over
+5237 wait_key_release
+5d3a anim_move_step
+776f anim_rot_step
+7479 redraw_if_dirty
+784a rot_anim_busy
+5b5a cpu_speed_class
+5be3 init_move_anim
+756c init_rot_anim
+51ab poll_key                # -1 none
+93d6 alloc_pit
+8be5 play_sound
+# ---- more RTL ----
+e1ac LDIV
+e1b0 LUDIV
+e1b5 LMOD
+e1ba LUMOD
+e24f LXRSH
+e26d LXLSH
+e28c movedata
+e058 int86
+# ---- more data ----
+ds:0de4 cur_pose             # 3 x {axis,sign,pos}
+ds:0df4 cur_pos_z
+ds:40ab earned_level
+ds:4e60 layers_cleared
+ds:4e62 score_X              # never written (always 0)
+ds:4e66 drop_height
+ds:0f4c n_levels
+ds:0f4e fall_delay
+ds:41e9 cells_per_layer
+ds:40b3 pit_cells            # [x][y] -> z bytes
+ds:40b5 layer_count
+ds:41cb blockset
+ds:4e48 rotq_head
+ds:4e4c rotq_tail
+ds:44dc move_steps
+ds:4dfe rot_steps
