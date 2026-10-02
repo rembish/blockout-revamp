@@ -92,10 +92,31 @@ void gfx_rect_outline(float x, float y, float w, float h, float lw, rgba c)
     gfx_line(x, y + h, x, y, lw, c);
 }
 
+/* Translucent: one triangle fan, so nothing is blended twice. */
+static void round_rect_fan(float x, float y, float w, float h, float rad, rgba c)
+{
+    const int seg = 8;
+    float cx[4] = {x + w - rad, x + w - rad, x + rad, x + rad};
+    float cy[4] = {y + rad, y + h - rad, y + h - rad, y + rad};
+    float a0[4] = {(float)M_PI * 1.5f, 0, (float)M_PI * .5f, (float)M_PI};
+    float px[4 * (seg + 1)], py[4 * (seg + 1)];
+    int n = 0;
+    for (int k = 0; k < 4; k++)
+        for (int i = 0; i <= seg; i++) {
+            float t = a0[k] + (float)M_PI * .5f * i / seg;
+            px[n] = cx[k] + cosf(t) * rad;
+            py[n] = cy[k] + sinf(t) * rad;
+            n++;
+        }
+    float mx = x + w / 2, my = y + h / 2;
+    for (int i = 0; i < n; i++) gfx_tri(mx, my, px[i], py[i], px[(i + 1) % n], py[(i + 1) % n], c);
+}
+
 void gfx_round_rect(float x, float y, float w, float h, float rad, rgba c)
 {
     if (rad * 2 > h) rad = h / 2;
     if (rad * 2 > w) rad = w / 2;
+    if (c.a < 0.999f) { round_rect_fan(x, y, w, h, rad, c); return; }
     /* pieces overlap by a pixel so rasteriser seams never show (fills are opaque) */
     gfx_rect(x + rad - 1, y, w - 2 * rad + 2, h, c);
     gfx_rect(x, y + rad - 1, rad + 1, h - 2 * rad + 2, c);

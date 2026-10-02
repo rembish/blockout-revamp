@@ -18,7 +18,7 @@ add_custom_command(
 add_library(bocore STATIC core/bo_core.c core/bo_tables.c)
 target_include_directories(bocore PUBLIC core)
 
-add_executable(blockout src/main.c src/gfx.c src/font.c src/view.c ${FONT_C})
+add_executable(blockout src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c ${FONT_C})
 target_link_libraries(blockout PRIVATE bocore)
 
 if(EMSCRIPTEN)
