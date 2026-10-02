@@ -22,13 +22,13 @@ jobs:
       - uses: mymindstorm/setup-emsdk@v14
       - name: Build
         run: |
-          emcmake cmake -S port -B port/build-web -DCMAKE_BUILD_TYPE=Release
-          cmake --build port/build-web -j --target blockout
+          emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-web -j --target blockout
       - name: Assemble site
         run: |
           mkdir -p site
-          cp port/build-web/blockout.html site/index.html
-          cp port/build-web/blockout.js port/build-web/blockout.wasm site/
+          cp build-web/blockout.html site/index.html
+          cp build-web/blockout.js build-web/blockout.wasm site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

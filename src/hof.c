@@ -11,17 +11,27 @@
 #include <string.h>
 #include <time.h>
 
-#define VERSION "05-26-89"
-#define IDX_HDR 9
-#define KEY_SIZE 12
+#define VERSION    "05-26-89"
+#define IDX_HDR    9
+#define KEY_SIZE   12
 #define TABLE_SIZE 262
 #define ENTRY_SIZE 26
 #define MAX_TABLES 2000
 
 static int16_t rd16(const unsigned char *p) { return (int16_t)(p[0] | p[1] << 8); }
-static int32_t rd32(const unsigned char *p) { return (int32_t)((uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24); }
-static void wr16(unsigned char *p, int v) { p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8); }
-static void wr32(unsigned char *p, int32_t v) { for (int i = 0; i < 4; i++) p[i] = (unsigned char)((uint32_t)v >> (8 * i)); }
+static int32_t rd32(const unsigned char *p)
+{
+    return (int32_t)((uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24);
+}
+static void wr16(unsigned char *p, int v)
+{
+    p[0] = (unsigned char)v;
+    p[1] = (unsigned char)(v >> 8);
+}
+static void wr32(unsigned char *p, int32_t v)
+{
+    for (int i = 0; i < 4; i++) p[i] = (unsigned char)((uint32_t)v >> (8 * i));
+}
 
 static int mn(int a, int b) { return a < b ? a : b; }
 static int mx(int a, int b) { return a > b ? a : b; }
@@ -50,9 +60,11 @@ static void decode_table(const unsigned char *p, hof_table *t)
     if (t->count < 0 || t->count > HOF_MAX) t->count = 0;
     for (int i = 0; i < t->count; i++) {
         const unsigned char *e = p + 2 + i * ENTRY_SIZE;
-        memcpy(t->e[i].name, e, 11); t->e[i].name[HOF_NAME] = 0;
+        memcpy(t->e[i].name, e, 11);
+        t->e[i].name[HOF_NAME] = 0;
         t->e[i].score = rd32(e + 11);
-        memcpy(t->e[i].date, e + 15, 11); t->e[i].date[10] = 0;
+        memcpy(t->e[i].date, e + 15, 11);
+        t->e[i].date[10] = 0;
     }
 }
 
@@ -71,7 +83,10 @@ static void encode_table(const hof_table *t, unsigned char *p)
 void hof_load(const bo_setup *s, hof_table *t)
 {
     memset(t, 0, sizeof *t);
-    t->len = s->len; t->wid = s->wid; t->dep = s->dep; t->blockset = s->blockset;
+    t->len = s->len;
+    t->wid = s->wid;
+    t->dep = s->dep;
+    t->blockset = s->blockset;
     int il, dl;
     unsigned char *idx = load_file("blscore.idx", &il), *dat = load_file("blscore.dat", &dl);
     if (il >= IDX_HDR && !memcmp(idx, VERSION, 9))
@@ -110,32 +125,38 @@ int hof_insert(hof_table *t, int32_t score)
     memset(t->e[row].name, '.', HOF_NAME);
     t->e[row].score = score;
     time_t now = time(NULL);
-    struct tm *lt = localtime(&now);
-    snprintf(t->e[row].date, sizeof t->e[row].date, "%02u-%02u-%04u",
-             (unsigned)(lt->tm_mon + 1) % 100u, (unsigned)lt->tm_mday % 100u,
-             (unsigned)(lt->tm_year + 1900) % 10000u);
+    const struct tm *lt = localtime(&now);
+    snprintf(t->e[row].date, sizeof t->e[row].date, "%02u-%02u-%04u", (unsigned)(lt->tm_mon + 1) % 100u,
+             (unsigned)lt->tm_mday % 100u, (unsigned)(lt->tm_year + 1900) % 10000u);
     return row;
 }
 
 void hof_set_name(hof_table *t, int row, const char *name)
 {
     int i = 0;
-    for (; name[i] && i < HOF_NAME; i++) t->e[row].name[i] = name[i];
+    for (; i < HOF_NAME && name[i]; i++) t->e[row].name[i] = name[i];
     for (; i < HOF_NAME; i++) t->e[row].name[i] = '.';
     t->e[row].name[HOF_NAME] = 0;
 }
 
 int hof_save(const hof_table *t)
 {
-    bo_setup s = {t->len, t->wid, t->dep, t->blockset, 0, 0};
+    bo_setup s = { t->len, t->wid, t->dep, t->blockset, 0, 0 };
     int il, dl;
     unsigned char *idx = load_file("blscore.idx", &il), *dat = load_file("blscore.dat", &dl);
-    if (il < IDX_HDR || memcmp(idx, VERSION, 9)) { memcpy(idx, VERSION, 9); il = IDX_HDR; dl = 0; }
+    if (il < IDX_HDR || memcmp(idx, VERSION, 9) != 0) {
+        memcpy(idx, VERSION, 9);
+        il = IDX_HDR;
+        dl = 0;
+    }
     if (dl < 0) dl = 0;
     int pos = IDX_HDR, found = 0;
     for (; pos + KEY_SIZE <= il; pos += KEY_SIZE) {
         int c = key_cmp(idx + pos, &s);
-        if (c == 0) { found = 1; break; }
+        if (c == 0) {
+            found = 1;
+            break;
+        }
         if (c > 0) break;
     }
     int32_t off = found ? rd32(idx + pos + 8) : -1;
@@ -146,18 +167,24 @@ int hof_save(const hof_table *t)
         found = 0;
     }
     if (found) {
-        if (off + TABLE_SIZE > dl) {          /* DAT shorter than the index says: extend */
+        if (off + TABLE_SIZE > dl) { /* DAT shorter than the index says: extend */
             memset(dat + dl, 0, (size_t)(off + TABLE_SIZE - dl));
             dl = off + TABLE_SIZE;
         }
     } else {
-        if (il + KEY_SIZE > IDX_HDR + KEY_SIZE * MAX_TABLES) { free(idx); free(dat); return 0; }
+        if (il + KEY_SIZE > IDX_HDR + KEY_SIZE * MAX_TABLES) {
+            free(idx);
+            free(dat);
+            return 0;
+        }
         off = dl;
         dl += TABLE_SIZE;
         memmove(idx + pos + KEY_SIZE, idx + pos, (size_t)(il - pos));
         il += KEY_SIZE;
-        wr16(idx + pos, t->len); wr16(idx + pos + 2, t->wid);
-        wr16(idx + pos + 4, t->dep); wr16(idx + pos + 6, t->blockset);
+        wr16(idx + pos, t->len);
+        wr16(idx + pos + 2, t->wid);
+        wr16(idx + pos + 4, t->dep);
+        wr16(idx + pos + 6, t->blockset);
         wr32(idx + pos + 8, off);
     }
     encode_table(t, dat + off);

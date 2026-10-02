@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(blockout C)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 if(NOT CMAKE_BUILD_TYPE)
@@ -18,7 +20,7 @@ add_custom_command(
 add_library(bocore STATIC core/bo_core.c core/bo_tables.c)
 target_include_directories(bocore PUBLIC core)
 
-add_executable(blockout src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c ${FONT_C})
+add_executable(blockout src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c third_party/stb_truetype_impl.c ${FONT_C})
 target_link_libraries(blockout PRIVATE bocore)
 
 if(EMSCRIPTEN)
@@ -35,11 +37,26 @@ else()
   endif()
 endif()
 
-if(NOT MSVC)
-  target_compile_options(bocore PRIVATE -Wall -Wextra)
-  target_compile_options(blockout PRIVATE -Wall -Wextra)
-endif()
-
-# Replay tool used by re/emu/difftest.py
+# Replay and bot tools used by re/emu/difftest.py
 add_executable(bo_replay tests/replay.c)
 target_link_libraries(bo_replay PRIVATE bocore)
+add_executable(bo_botgen tests/botgen.c)
+target_link_libraries(bo_botgen PRIVATE bocore)
+
+option(BO_WERROR "Treat warnings as errors" OFF)
+if(NOT MSVC)
+  set(BO_WARN -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wcast-qual -Wstrict-prototypes
+      -Wmissing-prototypes -Wnull-dereference -Wvla -Wdouble-promotion)
+  if(BO_WERROR)
+    list(APPEND BO_WARN -Werror)
+  endif()
+  # The core reproduces 16-bit arithmetic, so every narrowing must be explicit there.
+  set(BO_WARN_STRICT ${BO_WARN} -Wconversion -Wsign-conversion)
+  target_compile_options(bocore PRIVATE ${BO_WARN_STRICT})
+  target_compile_options(bo_replay PRIVATE ${BO_WARN_STRICT})
+  target_compile_options(bo_botgen PRIVATE ${BO_WARN_STRICT})
+  target_compile_options(blockout PRIVATE ${BO_WARN})
+  # stb_truetype is third-party
+  set_source_files_properties(third_party/stb_truetype_impl.c PROPERTIES COMPILE_OPTIONS "-w")
+endif()
+

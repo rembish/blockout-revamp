@@ -5,13 +5,15 @@
 #include "gfx.h"
 #include "../core/bo_core.h"
 
-typedef struct { float x, y, w, h; } box;
+typedef struct {
+    float x, y, w, h;
+} box;
 
 typedef struct {
-    float time;                 /* seconds, for subtle effects */
-    float frac;                 /* 0..1 progress towards the next logic frame */
-    float clear_flash;          /* 1 -> 0 after a layer clear */
-    const char *message;        /* big overlay text or NULL */
+    float time;          /* seconds, for subtle effects */
+    float frac;          /* 0..1 progress towards the next logic frame */
+    float clear_flash;   /* 1 -> 0 after a layer clear */
+    const char *message; /* big overlay text or NULL */
     const char *submessage;
 } view_fx;
 

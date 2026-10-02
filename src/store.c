@@ -13,7 +13,8 @@ EM_JS(int, js_store_read, (const char *name, unsigned char *buf, int max), {
         var s = atob(v), n = Math.min(s.length, max);
         for (var i = 0; i < n; i++) HEAPU8[buf + i] = s.charCodeAt(i);
         return n;
-    } catch (e) { return -1; }
+}
+catch(e) { return -1; }
 });
 
 EM_JS(int, js_store_write, (const char *name, const unsigned char *buf, int len), {
@@ -22,7 +23,8 @@ EM_JS(int, js_store_write, (const char *name, const unsigned char *buf, int len)
         for (var i = 0; i < len; i++) s += String.fromCharCode(HEAPU8[buf + i]);
         localStorage.setItem('blockout:' + UTF8ToString(name), btoa(s));
         return len;
-    } catch (e) { return -1; }
+}
+catch(e) { return -1; }
 });
 
 void store_init(void) {}
@@ -37,7 +39,10 @@ static char base[1024];
 void store_init(void)
 {
     char *p = SDL_GetPrefPath("BlockOut", "BlockOut");
-    if (p) { snprintf(base, sizeof base, "%s", p); SDL_free(p); }
+    if (p) {
+        snprintf(base, sizeof base, "%s", p);
+        SDL_free(p);
+    }
 }
 
 static void path(char *out, size_t n, const char *name) { snprintf(out, n, "%s%s", base, name); }
@@ -49,7 +54,8 @@ int store_read(const char *name, void *buf, int max)
     FILE *f = fopen(p, "rb");
     if (!f) return -1;
     int n = (int)fread(buf, 1, (size_t)max, f);
-    fclose(f);
+    if (ferror(f)) n = -1;
+    if (fclose(f) != 0) n = -1;
     return n;
 }
 
@@ -61,8 +67,13 @@ int store_write(const char *name, const void *buf, int len)
     FILE *f = fopen(tmp, "wb");
     if (!f) return -1;
     int n = (int)fwrite(buf, 1, (size_t)len, f);
-    if (fclose(f) != 0 || n != len) { remove(tmp); return -1; }
-    remove(p);
+    if (fclose(f) != 0 || n != len) {
+        (void)remove(tmp);
+        return -1;
+    }
+#ifdef _WIN32
+    (void)remove(p); /* rename() does not replace on Windows */
+#endif
     if (rename(tmp, p) != 0) return -1;
     return n;
 }

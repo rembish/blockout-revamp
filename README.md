@@ -1,9 +1,9 @@
 # BlockOut (1989) — decompilation & multiplatform port
 
 BlockOut is a 3D Tetris-like game for DOS (California Dreams / P.Z. Karen Co., 1989).
-This repo holds the original DOS release and a reverse-engineered port of it to
-portable C + SDL2, so it runs natively on Linux, Windows and macOS, and in a browser
-via WebAssembly.
+This repo is a reverse-engineered port of it to portable C + SDL2: it runs natively on
+Linux, Windows and macOS, and in a browser via WebAssembly. No original game files are
+included or needed to play.
 
 ![The original 1989 demo AI playing a 3x3x10 pit until game over](docs/demo-3x3x10.gif)
 
@@ -15,8 +15,8 @@ The goal has two halves:
 1. **Game logic: decompiled faithfully.** Piece sets, the random number generator and
    how it is seeded and used, fall speed and level progression, scoring, layer clears,
    rotation and movement rules, and all timings, expressed in the original timer ticks.
-   This becomes a deterministic, platform-independent C core. Given the same seed and
-   inputs, it should behave exactly like the original under DOSBox.
+   This is a deterministic, platform-independent C core that is checked frame by frame
+   against the original machine code (see [How faithful is it?](#how-faithful-is-it)).
 2. **Presentation: modernized.** Rendering, input and audio are written fresh on top of
    the core. The original EGA/CGA/Hercules drawing code is not ported. It is only read
    where it reveals game rules (e.g. what is shown when).
@@ -25,13 +25,23 @@ The goal has two halves:
 
 | Path        | Contents |
 |-------------|----------|
-| `original/` | Untouched DOS release (version `05-26-89`, EGA/CGA/Tandy/Hercules build) |
-| `re/`       | Reverse-engineering notes, scripts, Ghidra exports |
-| `port/core` | Game logic reconstructed from `BL2.OVL`: plain C, no I/O, deterministic |
-| `port/src`  | SDL2 frontend: rendering, input, sound, menus, hall of fame (native and Emscripten) |
-| `port/tests`| Replay and bot tools used by the differential tests |
+| `core/`     | Game logic reconstructed from `BL2.OVL`: plain C, no I/O, deterministic |
+| `src/`      | SDL2 frontend: rendering, input, sound, menus, hall of fame (native and Emscripten) |
+| `tests/`    | Replay and bot tools used by the differential tests |
+| `web/`      | HTML shell for the browser build |
+| `re/`       | Reverse-engineering notes, Ghidra scripts, table generator, emulator harness |
+| `docs/`     | Demo clip |
 
 ## The original
+
+The reverse-engineering tools in `re/` need your own copy of the DOS release (version
+`05-26-89`, the EGA/CGA/Tandy/Hercules build) in `original/`. It is git-ignored and not
+distributed. The files the tools were written against:
+
+```
+2acc65779b196f17422731339e7a55ff0124898145924c86ca625e6e0a202263  BL2.OVL
+174c0644b9d8426165890cab9d5b28ef5835f8393af350a5b38e2a80d65f82ea  BL.EXE
+```
 
 - `BL.EXE` is a launcher (Turbo C 2.0). It shows the logo and the graphics-mode menu,
   then loads the game.
@@ -68,18 +78,18 @@ be copied there (lower-case names).
 Native (Linux, macOS, Windows with any SDL2 package):
 
 ```sh
-cmake -S port -B port/build
-cmake --build port/build -j
-./port/build/blockout
+cmake -S . -B build
+cmake --build build -j
+./build/blockout
 ```
 
 Browser (Emscripten):
 
 ```sh
 source ~/tools/emsdk/emsdk_env.sh
-emcmake cmake -S port -B port/build-web
-cmake --build port/build-web -j --target blockout
-cd port/build-web && python3 -m http.server   # open http://localhost:8000/blockout.html
+emcmake cmake -S . -B build-web
+cmake --build build-web -j --target blockout
+cd build-web && python3 -m http.server   # open http://localhost:8000/blockout.html
 ```
 
 The web build is three static files (`blockout.html`, `.js`, `.wasm`) and can be hosted
@@ -95,7 +105,7 @@ checked against the original machine code:
   drawing and sound, fakes the BIOS keyboard and timer, and runs the real play loop and
   demo loop headless.
 - `re/emu/difftest.py` feeds the same random key scripts (random mashing, a search bot
-  that clears layers, pre-filled pits, the demo) to the original and to `port/core`, and
+  that clears layers, pre-filled pits, the demo) to the original and to `core/`, and
   compares the complete game state on every frame.
 
   ```sh
@@ -134,8 +144,24 @@ Ghidra has no prebuilt decompiler for Linux on ARM64. Build it from the bundled 
 (after `mkdir com_opt ghi_opt sla_opt` there) and copy the two binaries to
 `Ghidra/Features/Decompiler/os/linux_arm_64/` as `decompile` and `sleigh`.
 
+## Code quality
+
+The core and tests build with `-Wall -Wextra -Wpedantic -Wshadow -Wconversion
+-Wsign-conversion` and more (the frontend without the conversion warnings), and are kept
+clean under clang-tidy (`.clang-tidy`), cppcheck and clang-format (`.clang-format`).
+
+```sh
+cmake -S . -B build -DBO_WERROR=ON && cmake --build build -j
+clang-format --dry-run --Werror core/*.h core/bo_core.c src/*.[ch] tests/*.c
+clang-tidy -p build core/*.c src/*.c tests/*.c
+cppcheck --enable=warning,style,performance,portability --std=c99 -U__EMSCRIPTEN__ \
+         --suppress=missingIncludeSystem -I core -I src core src tests
+```
+
+CI runs all of this on every push.
+
 ## Credits
 
-BlockOut © 1989 P.Z. Karen Co. Development Group / California Dreams. The original files
-in `original/` are included for preservation and reference. Font: Exo 2 (SIL OFL).
-Text rendering: stb_truetype (public domain).
+BlockOut © 1989 P.Z. Karen Co. Development Group / California Dreams. This is an
+unofficial fan reimplementation for preservation; no original game files are
+distributed. Font: Exo 2 (SIL OFL). Text rendering: stb_truetype (public domain).

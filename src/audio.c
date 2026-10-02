@@ -9,18 +9,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RATE 44100
-#define UNIT 7.58e-6              /* seconds per delay unit */
-#define SETFREQ_OVERHEAD 40e-6    /* cost of reprogramming the PIT (a long division) */
-#define MAXS (RATE * 3)
+#define RATE             44100
+#define UNIT             7.58e-6 /* seconds per delay unit */
+#define SETFREQ_OVERHEAD 40e-6   /* cost of reprogramming the PIT (a long division) */
+#define MAXS             (RATE * 3)
 
 static SDL_AudioDeviceID dev;
 static float volume = 0.22f;
 
 static float buf[MAXS];
 static int n;
-static double phase;              /* 0..1 of the current square wave */
-static int level;                 /* manual speaker bit for the PWM tune */
+static double phase; /* 0..1 of the current square wave */
+static int level;    /* manual speaker bit for the PWM tune */
 
 static void emit_tone(double freq, double secs)
 {
@@ -62,8 +62,14 @@ static void pwm_note(int period, int reps)
     int list[32], k = 0;
     for (int d = 1; d <= 100; d += 4) list[k++] = d;
     for (int r = 0; r < reps; r++) {
-        for (int i = 0; i < k; i++) { emit_level(1, list[i] * UNIT); emit_level(0, (period - list[i]) * UNIT); }
-        for (int i = k - 1; i >= 0; i--) { emit_level(1, list[i] * UNIT); emit_level(0, (period - list[i]) * UNIT); }
+        for (int i = 0; i < k; i++) {
+            emit_level(1, list[i] * UNIT);
+            emit_level(0, (period - list[i]) * UNIT);
+        }
+        for (int i = k - 1; i >= 0; i--) {
+            emit_level(1, list[i] * UNIT);
+            emit_level(0, (period - list[i]) * UNIT);
+        }
     }
 }
 
@@ -71,33 +77,36 @@ static void synth(int snd)
 {
     n = 0;
     switch (snd) {
-    case 0:                                     /* 8f90: pit cleared */
+    case 0: /* 8f90: pit cleared */
         for (int i = 0; i < 5; i++) warble(6000 - 600 * i, 800, 800, 3000, 1);
         break;
-    case 1: sweep(0xa8c, 0x32, 0xdc, 600); break; /* 8fc3: layer cleared */
+    case 1: sweep(0xa8c, 0x32, 0xdc, 600); break;   /* 8fc3: layer cleared */
     case 2: warble(3000, 0x8fc, 0x1e, 9, 2); break; /* 8f47: level up */
-    case 3: {                                   /* 9037: hall of fame tune */
-        static const int notes[8][2] = {{0x109, 1}, {300, 1}, {0x168, 1}, {300, 1},
-                                        {0x168, 1}, {0x19a, 2}, {0x168, 1}, {300, 4}};
+    case 3: {                                       /* 9037: hall of fame tune */
+        static const int notes[8][2] = { { 0x109, 1 }, { 300, 1 },   { 0x168, 1 }, { 300, 1 },
+                                         { 0x168, 1 }, { 0x19a, 2 }, { 0x168, 1 }, { 300, 4 } };
         for (int i = 0; i < 8; i++) pwm_note(notes[i][0], notes[i][1]);
         break;
     }
-    case 100:                                   /* menu click */
-        emit_tone(1800, 0.012);
-        break;
+    case 100: /* menu click */ emit_tone(1800, 0.012); break;
+    default: break;
     }
 }
 
 /* soften the raw square wave a little: one-pole low-pass + fade edges */
 static void finish(void)
 {
+    if (n <= 0) return;
     float y = 0, a = 1.f - expf(-2.f * (float)M_PI * 5000.f / RATE);
     for (int i = 0; i < n; i++) {
         y += a * (buf[i] - y);
         buf[i] = y * volume;
     }
     int f = n < 200 ? n / 2 : 100;
-    for (int i = 0; i < f; i++) { buf[i] *= (float)i / f; buf[n - 1 - i] *= (float)i / f; }
+    for (int i = 0; i < f; i++) {
+        buf[i] *= (float)i / f;
+        buf[n - 1 - i] *= (float)i / f;
+    }
 }
 
 void audio_init(void)
@@ -124,12 +133,15 @@ static void play(int snd)
     if (!dev) return;
     synth(snd);
     finish();
-    SDL_ClearQueuedAudio(dev);        /* the speaker plays one thing at a time */
+    SDL_ClearQueuedAudio(dev); /* the speaker plays one thing at a time */
     SDL_QueueAudio(dev, buf, (Uint32)(n * sizeof(float)));
 }
 
 void audio_play(int snd) { play(snd); }
-void audio_click(void) { if (dev && SDL_GetQueuedAudioSize(dev) == 0) play(100); }
+void audio_click(void)
+{
+    if (dev && SDL_GetQueuedAudioSize(dev) == 0) play(100);
+}
 
 float audio_length(int snd)
 {

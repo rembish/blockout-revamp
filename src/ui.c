@@ -31,10 +31,7 @@ ui_item *ui_add(ui_menu *m, char hotkey, const char *fmt, ...)
     return it;
 }
 
-void ui_dim(box a, float alpha)
-{
-    gfx_rect(a.x, a.y, a.w, a.h, rgb_hex(0x02040c, alpha));
-}
+void ui_dim(box area, float alpha) { gfx_rect(area.x, area.y, area.w, area.h, rgb_hex(0x02040c, alpha)); }
 
 static void frame_box(box b, float t)
 {
@@ -47,23 +44,27 @@ void ui_menu_draw(ui_menu *m, box area, float t)
 {
     if (m->sel >= m->n) m->sel = m->n - 1;
     if (m->sel < 0) m->sel = 0;
-    float s = area.w * 0.052f;                /* item text size */
+    float s = area.w * 0.052f; /* item text size */
     float row = s * 1.55f;
     float w = area.w * 0.80f;
     int titled = m->title && m->title[0];
     float h = (titled ? s * 2.6f : s * 0.9f) + m->n * row + s * 0.8f + (m->subtitle ? s : 0);
-    box b = {area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h};
+    box b = { area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h };
     frame_box(b, t);
     float y = b.y + s * 0.6f;
     if (titled) {
         font_draw(b.x + w / 2, y, s * 1.05f, C_TITLE, ALIGN_CENTER, m->title);
         y += s * 1.5f;
-    } else y -= s * 0.6f;
-    if (m->subtitle) { font_draw(b.x + w / 2, y, s * 0.6f, C_DIS, ALIGN_CENTER, m->subtitle); y += s; }
+    } else
+        y -= s * 0.6f;
+    if (m->subtitle) {
+        font_draw(b.x + w / 2, y, s * 0.6f, C_DIS, ALIGN_CENTER, m->subtitle);
+        y += s;
+    }
     y += s * 0.5f;
     for (int i = 0; i < m->n; i++) {
         ui_item *it = &m->items[i];
-        box r = {b.x + s * 0.5f, y - row * 0.18f, w - s, row};
+        box r = { b.x + s * 0.5f, y - row * 0.18f, w - s, row };
         m->rects[i] = r;
         rgba c = it->disabled ? C_DIS : C_ITEM;
         if (i == m->sel) {
@@ -99,7 +100,7 @@ void ui_text_panel(box area, const char *title, const char *const *lines, int n,
 {
     float s = area.w * 0.040f;
     float w = area.w * 0.9f, h = s * 3.2f + n * s * 1.45f;
-    box b = {area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h};
+    box b = { area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h };
     frame_box(b, t);
     float y = b.y + s * 0.8f;
     font_draw(b.x + w / 2, y, s * 1.3f, C_TITLE, ALIGN_CENTER, title);

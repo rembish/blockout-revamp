@@ -1,4 +1,4 @@
-"""Differential test: original BL2.OVL (emulated) vs port/core on random input scripts.
+"""Differential test: original BL2.OVL (emulated) vs core on random input scripts.
 
 usage: difftest.py [n_runs] [first_seed]
 
@@ -11,13 +11,13 @@ import os, random, subprocess, sys, tempfile
 from bl2emu import Game
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PORT = os.path.join(HERE, '..', '..', 'port')
+ROOT = os.path.join(HERE, '..', '..')
 REPLAY = os.path.join(tempfile.gettempdir(), 'bo_replay')
 BOTGEN = os.path.join(tempfile.gettempdir(), 'bo_botgen')
 
 
 def bot_script(rng):
-    """A script from port/tests/botgen: a search bot that clears layers."""
+    """A script from tests/botgen: a search bot that clears layers."""
     args = [rng.randint(3, 5), rng.randint(3, 5), rng.randint(6, 12), rng.randint(0, 2), rng.randint(0, 9),
             rng.randint(0, 2), rng.choice([0, 0, 3]), rng.choice([30, 60, 70]), rng.choice([0, 1]),
             rng.randint(0, 65535), rng.randint(0, 1 << 20), rng.randint(15, 40), rng.randint(0, 3) and rng.randint(1, 999)]
@@ -118,10 +118,10 @@ def run_port(hdr, keys, path, max_frames):
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     first = int(sys.argv[2]) if len(sys.argv) > 2 else 1
-    subprocess.run(['gcc', '-O2', '-o', REPLAY, os.path.join(PORT, 'tests', 'replay.c'),
-                    os.path.join(PORT, 'core', 'bo_core.c'), os.path.join(PORT, 'core', 'bo_tables.c')], check=True)
-    subprocess.run(['gcc', '-O2', '-o', BOTGEN, os.path.join(PORT, 'tests', 'botgen.c'),
-                    os.path.join(PORT, 'core', 'bo_core.c'), os.path.join(PORT, 'core', 'bo_tables.c')], check=True)
+    subprocess.run(['gcc', '-O2', '-o', REPLAY, os.path.join(ROOT, 'tests', 'replay.c'),
+                    os.path.join(ROOT, 'core', 'bo_core.c'), os.path.join(ROOT, 'core', 'bo_tables.c')], check=True)
+    subprocess.run(['gcc', '-O2', '-o', BOTGEN, os.path.join(ROOT, 'tests', 'botgen.c'),
+                    os.path.join(ROOT, 'core', 'bo_core.c'), os.path.join(ROOT, 'core', 'bo_tables.c')], check=True)
     bad = 0
     for run in range(first, first + n):
         rng = random.Random(run)

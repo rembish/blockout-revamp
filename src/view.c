@@ -7,24 +7,24 @@
 
 /* EGA layer colours of the original (palette 1..7), modernised. */
 const rgba layer_colors[7] = {
-    {0.18f, 0.42f, 1.00f, 1}, /* blue    */
-    {0.20f, 0.83f, 0.42f, 1}, /* green   */
-    {0.13f, 0.83f, 0.93f, 1}, /* cyan    */
-    {1.00f, 0.30f, 0.37f, 1}, /* red     */
-    {0.84f, 0.36f, 1.00f, 1}, /* magenta */
-    {1.00f, 0.62f, 0.11f, 1}, /* brown -> amber */
-    {0.79f, 0.82f, 0.89f, 1}, /* light grey */
+    { 0.18f, 0.42f, 1.00f, 1 }, /* blue    */
+    { 0.20f, 0.83f, 0.42f, 1 }, /* green   */
+    { 0.13f, 0.83f, 0.93f, 1 }, /* cyan    */
+    { 1.00f, 0.30f, 0.37f, 1 }, /* red     */
+    { 0.84f, 0.36f, 1.00f, 1 }, /* magenta */
+    { 1.00f, 0.62f, 0.11f, 1 }, /* brown -> amber */
+    { 0.79f, 0.82f, 0.89f, 1 }, /* light grey */
 };
 
-static const char *set_names[3] = {"FLAT", "BASIC", "EXTENDED"};
+static const char *set_names[3] = { "FLAT", "BASIC", "EXTENDED" };
 
-#define C_BG0   rgb_hex(0x05070f, 1)
-#define C_BG1   rgb_hex(0x0b1226, 1)
-#define C_GRID  rgb_hex(0x2bd98a, 1)
-#define C_PANEL rgb_hex(0x0c1430, 1)
-#define C_EDGE  rgb_hex(0x2a3a6e, 1)
-#define C_LABEL rgb_hex(0x7f9cd9, 1)
-#define C_VALUE rgb_hex(0xe9f1ff, 1)
+#define C_BG0    rgb_hex(0x05070f, 1)
+#define C_BG1    rgb_hex(0x0b1226, 1)
+#define C_GRID   rgb_hex(0x2bd98a, 1)
+#define C_PANEL  rgb_hex(0x0c1430, 1)
+#define C_EDGE   rgb_hex(0x2a3a6e, 1)
+#define C_LABEL  rgb_hex(0x7f9cd9, 1)
+#define C_VALUE  rgb_hex(0xe9f1ff, 1)
 #define C_ACCENT rgb_hex(0x5ef2b0, 1)
 
 /* ---- projection ---------------------------------------------------------- */
@@ -40,7 +40,7 @@ static void proj_setup(const bo_game *g, box pit)
     P.cx = pit.x + pit.w / 2;
     P.cy = pit.y + pit.h / 2;
     P.scale = pit.w / n;
-    P.eye = 0.85f * n;                    /* eye height above the rim, in cubes */
+    P.eye = 0.85f * n; /* eye height above the rim, in cubes */
     P.top = g->setup.dep;
     P.hl = g->setup.len / 2.f;
     P.hw = g->setup.wid / 2.f;
@@ -55,10 +55,7 @@ static void proj(float x, float y, float z, float *sx, float *sy)
     *sy = P.cy - (y - P.hw) * k;
 }
 
-static float depth_shade(const bo_game *g, float z)
-{
-    return 0.45f + 0.55f * (z + 1) / (g->setup.dep + 1);
-}
+static float depth_shade(const bo_game *g, float z) { return 0.45f + 0.55f * (z + 1) / (g->setup.dep + 1); }
 
 /* ---- pit ------------------------------------------------------------------ */
 
@@ -86,40 +83,48 @@ static void draw_pit(const bo_game *g, float lw)
         rgba c0 = rgba_mix(C_BG0, C_BG1, s0 * 2);
         float zl = z, zh = z + 1;
         const float wall[4][4][3] = {
-            {{0, 0, zl}, {L, 0, zl}, {L, 0, zh}, {0, 0, zh}},
-            {{L, 0, zl}, {L, W, zl}, {L, W, zh}, {L, 0, zh}},
-            {{L, W, zl}, {0, W, zl}, {0, W, zh}, {L, W, zh}},
-            {{0, W, zl}, {0, 0, zl}, {0, 0, zh}, {0, W, zh}},
+            { { 0, 0, zl }, { L, 0, zl }, { L, 0, zh }, { 0, 0, zh } },
+            { { L, 0, zl }, { L, W, zl }, { L, W, zh }, { L, 0, zh } },
+            { { L, W, zl }, { 0, W, zl }, { 0, W, zh }, { L, W, zh } },
+            { { 0, W, zl }, { 0, 0, zl }, { 0, 0, zh }, { 0, W, zh } },
         };
         for (int k = 0; k < 4; k++) quad3(wall[k], rgba_scale(c0, k & 1 ? 0.85f : 1.0f));
     }
-    const float floor_[4][3] = {{0, 0, 0}, {L, 0, 0}, {L, W, 0}, {0, W, 0}};
+    const float floor_[4][3] = { { 0, 0, 0 }, { L, 0, 0 }, { L, W, 0 }, { 0, W, 0 } };
     quad3(floor_, rgba_mix(C_BG0, C_BG1, 0.15f));
 
     rgba gr = rgba_alpha(C_GRID, 0.30f), gr2 = rgba_alpha(C_GRID, 0.16f);
     for (int z = 0; z <= D; z++) {
         rgba c = z == D ? rgba_alpha(C_GRID, 0.85f) : rgba_alpha(C_GRID, 0.12f + 0.25f * z / D);
         float w = z == D ? lw * 1.6f : lw;
-        line3(0, 0, z, L, 0, z, w, c); line3(L, 0, z, L, W, z, w, c);
-        line3(L, W, z, 0, W, z, w, c); line3(0, W, z, 0, 0, z, w, c);
+        line3(0, 0, z, L, 0, z, w, c);
+        line3(L, 0, z, L, W, z, w, c);
+        line3(L, W, z, 0, W, z, w, c);
+        line3(0, W, z, 0, 0, z, w, c);
     }
     for (int x = 0; x <= L; x++) {
-        line3(x, 0, 0, x, 0, D, lw, gr2); line3(x, W, 0, x, W, D, lw, gr2);
+        line3(x, 0, 0, x, 0, D, lw, gr2);
+        line3(x, W, 0, x, W, D, lw, gr2);
         line3(x, 0, 0, x, W, 0, lw, gr);
     }
     for (int y = 0; y <= W; y++) {
-        line3(0, y, 0, 0, y, D, lw, gr2); line3(L, y, 0, L, y, D, lw, gr2);
+        line3(0, y, 0, 0, y, D, lw, gr2);
+        line3(L, y, 0, L, y, D, lw, gr2);
         line3(0, y, 0, L, y, 0, lw, gr);
     }
 }
 
 /* ---- settled cubes ----------------------------------------------------- */
 
-typedef struct { int x, y; float d; } cell_ref;
+typedef struct {
+    int x, y;
+    float d;
+} cell_ref;
 
 static int occ(const bo_game *g, int x, int y, int z)
 {
     if (x < 0 || y < 0 || z < 0 || x >= g->setup.len || y >= g->setup.wid || z >= g->setup.dep) return 0;
+    if (x >= BO_MAX_LEN || y >= BO_MAX_WID || z >= BO_MAX_DEP) return 0;
     return g->cell[x][y][z];
 }
 
@@ -128,7 +133,8 @@ static void face(const float (*p)[3], rgba fill, rgba edge, float lw)
     float q[8];
     for (int i = 0; i < 4; i++) proj(p[i][0], p[i][1], p[i][2], &q[2 * i], &q[2 * i + 1]);
     gfx_quad(q, fill);
-    for (int i = 0; i < 4; i++) gfx_line(q[2 * i], q[2 * i + 1], q[(2 * i + 2) % 8], q[(2 * i + 3) % 8], lw, edge);
+    for (int i = 0; i < 4; i++)
+        gfx_line(q[2 * i], q[2 * i + 1], q[(2 * i + 2) % 8], q[(2 * i + 3) % 8], lw, edge);
 }
 
 static void draw_cube(const bo_game *g, int x, int y, int z, rgba base, float lw)
@@ -138,23 +144,23 @@ static void draw_cube(const bo_game *g, int x, int y, int z, rgba base, float lw
     rgba edge = rgba_alpha(rgba_scale(base, 0.25f), 0.9f);
     /* side faces that look towards the pit axis */
     if (x1 <= P.hl && !occ(g, x + 1, y, z)) {
-        const float f[4][3] = {{x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}, {x1, y0, z1}};
+        const float f[4][3] = { { x1, y0, z0 }, { x1, y1, z0 }, { x1, y1, z1 }, { x1, y0, z1 } };
         face(f, rgba_scale(base, 0.62f * sh), edge, lw);
     }
     if (x0 >= P.hl && !occ(g, x - 1, y, z)) {
-        const float f[4][3] = {{x0, y0, z0}, {x0, y1, z0}, {x0, y1, z1}, {x0, y0, z1}};
+        const float f[4][3] = { { x0, y0, z0 }, { x0, y1, z0 }, { x0, y1, z1 }, { x0, y0, z1 } };
         face(f, rgba_scale(base, 0.62f * sh), edge, lw);
     }
     if (y1 <= P.hw && !occ(g, x, y + 1, z)) {
-        const float f[4][3] = {{x0, y1, z0}, {x1, y1, z0}, {x1, y1, z1}, {x0, y1, z1}};
+        const float f[4][3] = { { x0, y1, z0 }, { x1, y1, z0 }, { x1, y1, z1 }, { x0, y1, z1 } };
         face(f, rgba_scale(base, 0.48f * sh), edge, lw);
     }
     if (y0 >= P.hw && !occ(g, x, y - 1, z)) {
-        const float f[4][3] = {{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}};
+        const float f[4][3] = { { x0, y0, z0 }, { x1, y0, z0 }, { x1, y0, z1 }, { x0, y0, z1 } };
         face(f, rgba_scale(base, 0.48f * sh), edge, lw);
     }
     if (!occ(g, x, y, z + 1)) {
-        const float f[4][3] = {{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}};
+        const float f[4][3] = { { x0, y0, z1 }, { x1, y0, z1 }, { x1, y1, z1 }, { x0, y1, z1 } };
         face(f, rgba_scale(base, sh), edge, lw);
     }
 }
@@ -167,12 +173,12 @@ static int cmp_cell(const void *a, const void *b)
 
 static void draw_settled(const bo_game *g, float lw, float flash)
 {
-    cell_ref order[BO_MAX_LEN * BO_MAX_WID];
+    cell_ref order[BO_MAX_LEN * BO_MAX_WID] = { { 0, 0, 0 } };
     int n = 0;
     for (int x = 0; x < g->setup.len; x++)
         for (int y = 0; y < g->setup.wid; y++) {
             float dx = x + .5f - P.hl, dy = y + .5f - P.hw;
-            order[n++] = (cell_ref){x, y, dx * dx + dy * dy};
+            order[n++] = (cell_ref){ x, y, dx * dx + dy * dy };
         }
     qsort(order, n, sizeof *order, cmp_cell);
     for (int z = 0; z < g->setup.dep; z++) {
@@ -186,7 +192,9 @@ static void draw_settled(const bo_game *g, float lw, float flash)
 
 /* ---- falling piece: logical pose with pending animation undone ---------- */
 
-typedef struct { float m[3][3], t[3]; } affine;   /* x' = m x + t */
+typedef struct {
+    float m[3][3], t[3];
+} affine; /* x' = m x + t */
 
 static affine pose_affine(const bo_pose *p)
 {
@@ -194,12 +202,12 @@ static affine pose_affine(const bo_pose *p)
     memset(&a, 0, sizeof a);
     for (int i = 0; i < 3; i++) {
         a.m[i][p->a[i].axis] = p->a[i].sign ? 1.f : -1.f;
-        a.t[i] = p->a[i].pos + (p->a[i].sign ? 0.f : 1.f);   /* cell -> continuous */
+        a.t[i] = p->a[i].pos + (p->a[i].sign ? 0.f : 1.f); /* cell -> continuous */
     }
     return a;
 }
 
-static affine aff_mul(const affine *a, const affine *b)   /* a after b */
+static affine aff_mul(const affine *a, const affine *b) /* a after b */
 {
     affine r;
     for (int i = 0; i < 3; i++) {
@@ -225,10 +233,11 @@ static affine partial_rot(const bo_pose *rp, float q)
 {
     affine r = pose_affine(rp), out;
     int u = 0;
-    for (int i = 0; i < 3; i++) if (r.m[i][i] == 1.f) u = i;          /* fixed axis */
+    for (int i = 0; i < 3; i++)
+        if (r.m[i][i] == 1.f) u = i; /* fixed axis */
     int a = (u + 1) % 3, b = (u + 2) % 3;
     /* in the (a,b) plane r maps (xa, xb) -> (m_aa xa + m_ab xb + ta, ...); a 90 degree turn */
-    float s = r.m[b][a];                                   /* sin of the full turn: +1 or -1 */
+    float s = r.m[b][a]; /* sin of the full turn: +1 or -1 */
     /* pivot: solve (I - R) c = t in the plane */
     float A = 1 - r.m[a][a], B = -r.m[a][b], C = -r.m[b][a], D = 1 - r.m[b][b];
     float det = A * D - B * C;
@@ -236,8 +245,10 @@ static affine partial_rot(const bo_pose *rp, float q)
     float th = q * (float)M_PI / 2 * s, cs = cosf(th), sn = sinf(th);
     memset(&out, 0, sizeof out);
     out.m[u][u] = 1;
-    out.m[a][a] = cs; out.m[a][b] = -sn;
-    out.m[b][a] = sn; out.m[b][b] = cs;
+    out.m[a][a] = cs;
+    out.m[a][b] = -sn;
+    out.m[b][a] = sn;
+    out.m[b][b] = cs;
     out.t[a] = ca - (cs * ca - sn * cb);
     out.t[b] = cb - (sn * ca + cs * cb);
     return out;
@@ -246,7 +257,7 @@ static affine partial_rot(const bo_pose *rp, float q)
 static affine piece_visual(const bo_game *g, float frac)
 {
     affine v = pose_affine(&g->pose);
-    float shift[3] = {0, 0, 0};
+    float shift[3] = { 0, 0, 0 };
     /* entries still in the queue, newest first: undo fully */
     int busy_entry = -1;
     float p = 1;
@@ -276,7 +287,11 @@ static affine piece_visual(const bo_game *g, float frac)
     return v;
 }
 
-typedef struct { float q[8]; float depth; float shade; } pface;
+typedef struct {
+    float q[8];
+    float depth;
+    float shade;
+} pface;
 
 static int cmp_face(const void *a, const void *b)
 {
@@ -287,21 +302,23 @@ static int cmp_face(const void *a, const void *b)
 static void draw_piece(const bo_game *g, float lw, float frac, float t)
 {
     affine v = piece_visual(g, frac);
-    static const float corners[8][3] = {{0,0,0},{1,0,0},{1,1,0},{0,1,0},{0,0,1},{1,0,1},{1,1,1},{0,1,1}};
-    static const int faces[6][4] = {{0,1,2,3},{4,5,6,7},{0,1,5,4},{1,2,6,5},{2,3,7,6},{3,0,4,7}};
-    pface pf[5 * 6];
+    static const float corners[8][3] = { { 0, 0, 0 }, { 1, 0, 0 }, { 1, 1, 0 }, { 0, 1, 0 },
+                                         { 0, 0, 1 }, { 1, 0, 1 }, { 1, 1, 1 }, { 0, 1, 1 } };
+    static const int faces[6][4] = { { 0, 1, 2, 3 }, { 4, 5, 6, 7 }, { 0, 1, 5, 4 },
+                                     { 1, 2, 6, 5 }, { 2, 3, 7, 6 }, { 3, 0, 4, 7 } };
+    pface pf[5 * 6] = { { { 0 }, 0, 0 } };
     int npf = 0;
-    float eye[3] = {P.hl, P.hw, P.top + P.eye};
+    const float eye[3] = { P.hl, P.hw, P.top + P.eye };
     for (int c = 0; c < bo_ncubes(g); c++) {
-        const int8_t *cc = &bo_piece_cubes[3 * (bo_piece_first[g->piece] + c)];
+        const int16_t *cc = &bo_piece_cubes[3 * (bo_piece_first[g->piece] + c)];
         float w[8][3];
         for (int i = 0; i < 8; i++) {
-            float l[3] = {cc[0] + corners[i][0], cc[1] + corners[i][1], cc[2] + corners[i][2]};
+            float l[3] = { cc[0] + corners[i][0], cc[1] + corners[i][1], cc[2] + corners[i][2] };
             aff_apply(&v, l, w[i]);
         }
         for (int f = 0; f < 6; f++) {
             pface *p = &pf[npf++];
-            float m[3] = {0, 0, 0};
+            float m[3] = { 0, 0, 0 };
             for (int i = 0; i < 4; i++) {
                 const float *pt = w[faces[f][i]];
                 proj(pt[0], pt[1], pt[2], &p->q[2 * i], &p->q[2 * i + 1]);
@@ -319,12 +336,12 @@ static void draw_piece(const bo_game *g, float lw, float frac, float t)
     for (int i = 0; i < npf; i++) gfx_quad(pf[i].q, rgba_alpha(fill, fill.a * pf[i].shade + 0.04f));
     for (int i = 0; i < npf; i++)
         for (int k = 0; k < 4; k++) {
-            float *q = pf[i].q;
+            const float *q = pf[i].q;
             gfx_line(q[2 * k], q[2 * k + 1], q[(2 * k + 2) % 8], q[(2 * k + 3) % 8], lw * 4.f, glow);
         }
     for (int i = 0; i < npf; i++)
         for (int k = 0; k < 4; k++) {
-            float *q = pf[i].q;
+            const float *q = pf[i].q;
             gfx_line(q[2 * k], q[2 * k + 1], q[(2 * k + 2) % 8], q[(2 * k + 3) % 8], lw * 1.4f, edge);
         }
 }
@@ -339,12 +356,16 @@ void view_pit_box(int w, int h, box *pit, box *gauge, box *panel)
     float total = gw + gap + S + gap + pw;
     if (total > w - 2 * m) {
         float k = (w - 2 * m) / total;
-        S *= k; gw *= k; pw *= k; gap *= k; total = w - 2 * m;
+        S *= k;
+        gw *= k;
+        pw *= k;
+        gap *= k;
+        total = w - 2 * m;
     }
     float x = (w - total) / 2, y = (h - S) / 2;
-    *gauge = (box){x, y, gw, S};
-    *pit = (box){x + gw + gap, y, S, S};
-    *panel = (box){x + gw + gap + S + gap, y, pw, S};
+    *gauge = (box){ x, y, gw, S };
+    *pit = (box){ x + gw + gap, y, S, S };
+    *panel = (box){ x + gw + gap + S + gap, y, pw, S };
 }
 
 static void draw_gauge(const bo_game *g, box b, float s)
@@ -389,25 +410,29 @@ static void draw_panel(const bo_game *g, box b)
     draw_logo(b, b.y + s * 0.6f, s * 1.6f);
     float y = b.y + s * 3.9f;
     snprintf(buf, sizeof buf, "%ld", (long)g->score);
-    stat(b, y, s, "SCORE", buf, C_ACCENT); y += s * 2.2f;
+    stat(b, y, s, "SCORE", buf, C_ACCENT);
+    y += s * 2.2f;
     snprintf(buf, sizeof buf, "%ld", (long)g->cubes_played);
-    stat(b, y, s, "CUBES PLAYED", buf, C_VALUE); y += s * 2.2f;
+    stat(b, y, s, "CUBES PLAYED", buf, C_VALUE);
+    y += s * 2.2f;
     snprintf(buf, sizeof buf, "%ld", (long)g->hiscore);
-    stat(b, y, s, "HIGH SCORE", buf, C_VALUE); y += s * 2.2f;
+    stat(b, y, s, "HIGH SCORE", buf, C_VALUE);
+    y += s * 2.2f;
     snprintf(buf, sizeof buf, "%dx%dx%d", g->setup.len, g->setup.wid, g->setup.dep);
-    stat(b, y, s, "PIT", buf, rgb_hex(0xffb347, 1)); y += s * 2.2f;
-    stat(b, y, s, "BLOCK SET", set_names[g->setup.blockset], rgb_hex(0xffb347, 1)); y += s * 2.4f;
+    stat(b, y, s, "PIT", buf, rgb_hex(0xffb347, 1));
+    y += s * 2.2f;
+    stat(b, y, s, "BLOCK SET", set_names[g->setup.blockset], rgb_hex(0xffb347, 1));
+    y += s * 2.4f;
     float ks = s * 0.36f;
     rgba kc = rgba_alpha(C_LABEL, 0.75f);
-    font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "ARROWS move   SPACE drop"); y += ks * 1.5f;
-    font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "Q W E / A S D rotate"); y += ks * 1.5f;
+    font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "ARROWS move   SPACE drop");
+    y += ks * 1.5f;
+    font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "Q W E / A S D rotate");
+    y += ks * 1.5f;
     font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "P pause   O sound   ESC quit");
 }
 
-void view_background(int w, int h)
-{
-    gfx_rect_v(0, 0, w, h, rgb_hex(0x0a1024, 1), rgb_hex(0x02030a, 1));
-}
+void view_background(int w, int h) { gfx_rect_v(0, 0, w, h, rgb_hex(0x0a1024, 1), rgb_hex(0x02030a, 1)); }
 
 void view_game(const bo_game *g, int w, int h, const view_fx *fx)
 {
@@ -424,10 +449,12 @@ void view_game(const bo_game *g, int w, int h, const view_fx *fx)
     if (g->state != BO_S_GAME_OVER && g->state != BO_S_DONE) draw_piece(g, lw, fx->frac, fx->time);
     if (fx->message) {
         float s = pit.w * 0.09f;
-        gfx_rect(pit.x, pit.y + pit.h / 2 - s * 1.1f, pit.w, s * (fx->submessage ? 2.6f : 2.0f), rgb_hex(0x000000, 0.6f));
+        gfx_rect(pit.x, pit.y + pit.h / 2 - s * 1.1f, pit.w, s * (fx->submessage ? 2.6f : 2.0f),
+                 rgb_hex(0x000000, 0.6f));
         font_draw(pit.x + pit.w / 2, pit.y + pit.h / 2 - s * 0.8f, s, C_VALUE, ALIGN_CENTER, fx->message);
         if (fx->submessage)
-            font_draw(pit.x + pit.w / 2, pit.y + pit.h / 2 + s * 0.45f, s * 0.4f, C_ACCENT, ALIGN_CENTER, fx->submessage);
+            font_draw(pit.x + pit.w / 2, pit.y + pit.h / 2 + s * 0.45f, s * 0.4f, C_ACCENT, ALIGN_CENTER,
+                      fx->submessage);
     }
     gfx_flush();
 }

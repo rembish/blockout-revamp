@@ -3,6 +3,7 @@
  * Comments name the original routines (segment 1000 offsets); see re/NOTES.md.
  */
 #include "bo_core.h"
+#include <assert.h>
 #include <string.h>
 
 /* ---- Turbo C rand() ---------------------------------------------------- */
@@ -19,7 +20,7 @@ int bo_rand(bo_game *g)
 
 void bo_key(bo_game *g, uint16_t key)
 {
-    if (g->kb_count == BO_KEYBUF) return;   /* full: BIOS beeps and drops it */
+    if (g->kb_count == BO_KEYBUF) return; /* full: BIOS beeps and drops it */
     g->keybuf[(g->kb_head + g->kb_count++) % BO_KEYBUF] = key;
 }
 
@@ -45,7 +46,7 @@ void bo_tick(bo_game *g)
 
 /* ---- geometry ----------------------------------------------------------- */
 
-static const int8_t *cube(const bo_game *g, int i)
+static const int16_t *cube(const bo_game *g, int i)
 {
     return &bo_piece_cubes[3 * (bo_piece_first[g->piece] + i)];
 }
@@ -53,7 +54,7 @@ static const int8_t *cube(const bo_game *g, int i)
 int bo_ncubes(const bo_game *g) { return bo_piece_ncubes[g->piece]; }
 
 /* transform_cube (91f1) */
-static void transform(const bo_pose *p, const int8_t *c, int16_t out[3])
+static void transform(const bo_pose *p, const int16_t *c, int16_t out[3])
 {
     for (int i = 0; i < 3; i++) {
         int v = c[p->a[i].axis];
@@ -71,26 +72,36 @@ static void compose(const bo_pose *p, const bo_pose *r, bo_pose *out)
 {
     for (int i = 0; i < 3; i++) {
         const bo_axis *q = &r->a[p->a[i].axis];
-        out->a[i].pos  = (int16_t)((p->a[i].sign ? q->pos : -q->pos) + p->a[i].pos);
+        out->a[i].pos = (int16_t)((p->a[i].sign ? q->pos : -q->pos) + p->a[i].pos);
         out->a[i].axis = q->axis;
         out->a[i].sign = (int16_t)(p->a[i].sign ? q->sign : 1 - q->sign);
     }
 }
 
-static const int16_t *pit_dims(const bo_game *g) { return &g->setup.len; }
+static int pit_dim(const bo_game *g, int axis)
+{
+    return axis == 0 ? g->setup.len : axis == 1 ? g->setup.wid : g->setup.dep;
+}
 
 /* cube_check (2991): 0 = free, 1 = outside (push = way back in), 2 = occupied.
    An outside cube is clamped first, and its clamped cell is still tested. */
-static int cube_check(const bo_game *g, const int8_t *c, const bo_pose *p, int16_t push[3])
+static int cube_check(const bo_game *g, const int16_t *c, const bo_pose *p, int16_t push[3])
 {
     int16_t v[3];
     int r = 0;
     transform(p, c, v);
     for (int i = 0; i < 3; i++) {
-        int max = pit_dims(g)[i] - 1;
-        if (v[i] < 0) { r = 1; push[i] = (int16_t)-v[i]; v[i] = 0; }
-        else if (v[i] > max) { r = 1; push[i] = (int16_t)(max - v[i]); v[i] = (int16_t)max; }
-        else push[i] = 0;
+        int max = pit_dim(g, i) - 1;
+        if (v[i] < 0) {
+            r = 1;
+            push[i] = (int16_t)-v[i];
+            v[i] = 0;
+        } else if (v[i] > max) {
+            r = 1;
+            push[i] = (int16_t)(max - v[i]);
+            v[i] = (int16_t)max;
+        } else
+            push[i] = 0;
     }
     if (g->cell[v[0]][v[1]][v[2]]) r = 2;
     return r;
@@ -108,7 +119,10 @@ restart:
         if (r == 2) return 0;
         if (r == 1) {
             if (!kick) return 0;
-            for (int k = 0; k < 3; k++) { p.a[k].pos += push[k]; kickvec[k] += push[k]; }
+            for (int k = 0; k < 3; k++) {
+                p.a[k].pos = (int16_t)(p.a[k].pos + push[k]);
+                kickvec[k] = (int16_t)(kickvec[k] + push[k]);
+            }
             goto restart;
         }
     }
@@ -117,26 +131,26 @@ restart:
 
 /* ---- animations (frame based, visual only, but they gate drop/landing) - */
 
-int bo_rot_busy(const bo_game *g)   /* rot_anim_busy (784a) */
+int bo_rot_busy(const bo_game *g) /* rot_anim_busy (784a) */
 {
     return g->rot_left != 0 || g->rotq_head != g->rotq_tail;
 }
 
 static int anims_busy(const bo_game *g) { return g->move_left != 0 || bo_rot_busy(g); }
 
-static void anim_move_step(bo_game *g)   /* 5d3a */
+static void anim_move_step(bo_game *g) /* 5d3a */
 {
     if (!g->move_left) return;
-    for (int i = 0; i < 3; i++) g->move_rem[i] -= g->move_rem[i] / g->move_left;
+    for (int i = 0; i < 3; i++) g->move_rem[i] -= g->move_rem[i] / (float)g->move_left;
     g->move_left--;
 }
 
-static void anim_rot_step(bo_game *g)    /* 776f */
+static void anim_rot_step(bo_game *g) /* 776f */
 {
     if (g->rot_left == 0) {
         if (g->rotq_head == g->rotq_tail) return;
         g->rot_left = g->rot_steps;
-        g->rotq_head = g->rotq_head == 2 ? 0 : g->rotq_head + 1;
+        g->rotq_head = (int16_t)(g->rotq_head == 2 ? 0 : g->rotq_head + 1);
     }
     g->rot_left--;
 }
@@ -147,10 +161,14 @@ static void anim_rot_step(bo_game *g)    /* 776f */
 static int move_piece(bo_game *g, int dx, int dy, int dz)
 {
     bo_pose np = g->pose;
-    np.a[0].pos += dx; np.a[1].pos += dy; np.a[2].pos += dz;
+    np.a[0].pos = (int16_t)(np.a[0].pos + dx);
+    np.a[1].pos = (int16_t)(np.a[1].pos + dy);
+    np.a[2].pos = (int16_t)(np.a[2].pos + dz);
     if (!piece_fits(g, &np, 0, NULL)) return 1;
     g->pose = np;
-    g->move_rem[0] += dx; g->move_rem[1] += dy; g->move_rem[2] += dz;
+    g->move_rem[0] += (float)dx;
+    g->move_rem[1] += (float)dy;
+    g->move_rem[2] += (float)dz;
     g->move_left = g->move_steps;
     return 0;
 }
@@ -160,7 +178,10 @@ static int hard_drop(bo_game *g)
 {
     bo_pose p = g->pose;
     int dz = 0;
-    do { dz--; p.a[2].pos--; } while (piece_fits(g, &p, 0, NULL));
+    do {
+        dz--;
+        p.a[2].pos--;
+    } while (piece_fits(g, &p, 0, NULL));
     dz++;
     if (dz) move_piece(g, 0, 0, dz);
     return -dz;
@@ -186,7 +207,7 @@ static void rotate_piece(bo_game *g, int k)
     if (!piece_fits(g, &np, 1, e->kick)) return;
     e->rot = (int16_t)r;
     e->before = g->pose;
-    for (int i = 0; i < 3; i++) np.a[i].pos += e->kick[i];
+    for (int i = 0; i < 3; i++) np.a[i].pos = (int16_t)(np.a[i].pos + e->kick[i]);
     e->after = np;
     g->pose = np;
     g->rotq_tail = (int16_t)next;
@@ -196,7 +217,7 @@ static void rotate_piece(bo_game *g, int k)
 
 static int max_extent(int piece)
 {
-    int ext[3] = {0, 0, 0};
+    int ext[3] = { 0, 0, 0 };
     for (int i = 0; i < bo_piece_ncubes[piece]; i++)
         for (int k = 0; k < 3; k++) {
             int v = bo_piece_cubes[3 * (bo_piece_first[piece] + i) + k] + 1;
@@ -236,7 +257,7 @@ static int spawn_piece(bo_game *g)
     int16_t kick[3];
     new_piece(g);
     if (!piece_fits(g, &g->pose, 1, kick)) return 1;
-    for (int i = 0; i < 3; i++) g->pose.a[i].pos += kick[i];
+    for (int i = 0; i < 3; i++) g->pose.a[i].pos = (int16_t)(g->pose.a[i].pos + kick[i]);
     g->ev_spawned = 1;
     return 0;
 }
@@ -280,13 +301,15 @@ static void add_score(bo_game *g)
 {
     const bo_setup *s = &g->setup;
     const int32_t X = s->len + s->wid;
+    assert(s->dep >= 1 && s->dep <= BO_MAX_DEP);
     int32_t L = (int16_t)((g->level + 1) * (g->level + 17));
     int32_t n = g->layers_cleared;
     int32_t dk = bo_depth_factor[s->dep], sk = bo_set_factor[s->blockset];
     int32_t a = (n * X * n * L + n * 150) * dk * sk / 200;
     int32_t b = pit_empty(g) ? sk * L * dk * X / 62 : 0;
-    int32_t c = bo_class_factor[bo_piece_class[g->piece]] * L
-                * (int16_t)(g->drop_height * 12 + s->dep);
+    int32_t c = bo_class_factor[bo_piece_class[g->piece]] * L * (int16_t)(g->drop_height * 12 + s->dep);
+    /* dep is clamped to 6..18 by bo_init, so dep*dep is never 0 */
+    /* NOLINTNEXTLINE(clang-analyzer-core.DivideZero) */
     c = (int32_t)((uint32_t)c << 3) / (int16_t)(s->dep * s->dep) / 40;
     g->score = (g->score + ((a + b + c) >> 1) + 1) % 1000000;
 }
@@ -335,17 +358,19 @@ static void piece_prologue(bo_game *g)
         }
         g->delay = bo_fall_delay[g->level];
     }
-    g->countdown = g->mode == BO_MODE_PRACTICE ? 0 : g->delay;
+    g->countdown = (int16_t)(g->mode == BO_MODE_PRACTICE ? 0 : g->delay);
     g->drop_height = 0;
 }
 
 /* ---- demo AI --------------------------------------------------------- */
 
 /* Rotation sequences tried by the planner: bo_demo_seqs (ds:0478), {n, rot x n}... */
-#define demo_seqs bo_demo_seqs
+#define demo_seqs      bo_demo_seqs
 #define DEMO_SEQ_BYTES 0x46
 
-typedef struct { int16_t x[5], y[5], z[5]; } cubes5;
+typedef struct {
+    int16_t x[5], y[5], z[5];
+} cubes5;
 
 static int pit_free(const bo_game *g, int x, int y, int z)
 {
@@ -360,11 +385,11 @@ static int demo_shift(const bo_game *g, cubes5 *c, int axis, int d)
     int16_t *v = axis == 0 ? c->x : axis == 1 ? c->y : c->z;
     int i;
     for (i = 0; i < bo_ncubes(g); i++) {
-        v[i] += d;
+        v[i] = (int16_t)(v[i] + d);
         if (!pit_free(g, c->x[i], c->y[i], c->z[i])) break;
     }
     if (i == bo_ncubes(g)) return 1;
-    for (; i >= 0; i--) v[i] -= d;
+    for (; i >= 0; i--) v[i] = (int16_t)(v[i] - d);
     return 0;
 }
 
@@ -380,7 +405,10 @@ static int demo_eval(bo_game *g, const cubes5 *c)
     for (int i = n - 1; i >= 0; i--) {
         int x = c->x[i], y = c->y[i], z = c->z[i], w = g->demo_weight[z];
         score += z * 16;
-        if (g->layer_count[z] >= cells - 1) { score -= 7; w /= 4; }
+        if (g->layer_count[z] >= cells - 1) {
+            score -= 7;
+            w /= 4;
+        }
         if (x > 0 && !g->cell[x - 1][y][z]) score += w;
         if (x + 1 < s->len && !g->cell[x + 1][y][z]) score += w;
         if (y > 0 && !g->cell[x][y - 1][z]) score += w;
@@ -394,12 +422,14 @@ static int demo_eval(bo_game *g, const cubes5 *c)
     return score;
 }
 
-static void demo_cubes(const bo_game *g, const bo_pose *p, cubes5 *c)   /* 0e6d */
+static void demo_cubes(const bo_game *g, const bo_pose *p, cubes5 *c) /* 0e6d */
 {
     int16_t v[3];
     for (int i = bo_ncubes(g) - 1; i >= 0; i--) {
         transform(p, cube(g, i), v);
-        c->x[i] = v[0]; c->y[i] = v[1]; c->z[i] = v[2];
+        c->x[i] = v[0];
+        c->y[i] = v[1];
+        c->z[i] = v[2];
     }
 }
 
@@ -408,21 +438,22 @@ static void demo_plan(bo_game *g)
 {
     const bo_setup *s = &g->setup;
     int n = bo_ncubes(g), best = 0x7fff, thresh = -4;
-    g->demo_seq = 0; g->demo_dx = g->demo_dy = 0;
+    g->demo_seq = 0;
+    g->demo_dx = g->demo_dy = 0;
     int height = s->dep;
     while (height > 0 && g->layer_count[height - 1] == 0) height--;
     for (int off = 0; off < DEMO_SEQ_BYTES; off += demo_seqs[off] + 1) {
         bo_pose p = g->pose;
-        for (int r = 0; r < demo_seqs[off]; r++) {                   /* 11e2 */
+        for (int r = 0; r < demo_seqs[off]; r++) { /* 11e2 */
             bo_pose np;
             int16_t kick[3];
             compose(&p, &bo_rotations[rotation_index(&p, demo_seqs[off + 1 + r])], &np);
             if (piece_fits(g, &np, 1, kick)) {
                 p = np;
-                for (int k = 0; k < 3; k++) p.a[k].pos += kick[k];
+                for (int k = 0; k < 3; k++) p.a[k].pos = (int16_t)(p.a[k].pos + kick[k]);
             }
         }
-        cubes5 c = {{0}, {0}, {0}}, orig, row, saved;
+        cubes5 c = { { 0 }, { 0 }, { 0 } }, orig, saved;
         demo_cubes(g, &p, &c);
         orig = c;
         int maxx = 0, minx = s->len, maxy = 0, miny = s->wid, minz = s->dep;
@@ -433,27 +464,39 @@ static void demo_plan(bo_game *g)
             if (c.y[i] < miny) miny = c.y[i];
             if (c.z[i] < minz) minz = c.z[i];
         }
-        if (height - 1 < minz) {               /* above the stack: jump to the corner */
-            demo_shift(g, &c, 0, -minx); maxx -= minx;
-            demo_shift(g, &c, 1, -miny); maxy -= miny;
+        if (height - 1 < minz) { /* above the stack: jump to the corner */
+            demo_shift(g, &c, 0, -minx);
+            maxx -= minx;
+            demo_shift(g, &c, 1, -miny);
+            maxy -= miny;
             demo_shift(g, &c, 2, height - minz);
             minz = height;
         } else {
-            while (minx != 0 && demo_shift(g, &c, 0, -1)) { maxx--; minx--; }
-            while (miny != 0 && demo_shift(g, &c, 1, -1)) { maxy--; miny--; }
+            while (minx != 0 && demo_shift(g, &c, 0, -1)) {
+                maxx--;
+                minx--;
+            }
+            while (miny != 0 && demo_shift(g, &c, 1, -1)) {
+                maxy--;
+                miny--;
+            }
         }
         int ok;
         do {
-            row = c;
+            cubes5 row = c;
             int y = maxy;
             do {
-                saved = c;                                           /* 126a */
+                saved = c; /* 126a */
                 int drop = 0;
                 for (int k = minz; k > 0 && demo_shift(g, &c, 2, -1); k--) drop++;
                 int v;
-                if (drop < thresh) v = 0x7fff;
-                else { v = demo_eval(g, &c); thresh = (int16_t)drop; }
-                c = saved;                                           /* 12ce */
+                if (drop < thresh)
+                    v = 0x7fff;
+                else {
+                    v = demo_eval(g, &c);
+                    thresh = (int16_t)drop;
+                }
+                c = saved; /* 12ce */
                 if (v < best) {
                     best = v;
                     g->demo_seq = (int16_t)off;
@@ -471,7 +514,7 @@ static void demo_plan(bo_game *g)
     g->demo_ri = 0;
 }
 
-static void demo_weights(bo_game *g)   /* 0e24 */
+static void demo_weights(bo_game *g) /* 0e24 */
 {
     g->demo_weight[0] = (int16_t)(g->setup.dep + 1);
     for (int z = 1; z < g->setup.dep; z++) {
@@ -482,8 +525,16 @@ static void demo_weights(bo_game *g)   /* 0e24 */
 
 /* ---- the frame loop ---------------------------------------------------- */
 
-enum { R_NONE, R_AFTER_DROP, R_LAND, R_AFTER_LAND_SOUND, R_AFTER_LEVEL_SOUND, R_AFTER_PAUSE,
-       R_DEMO_SPAWN, R_DEMO_ACT };
+enum {
+    R_NONE,
+    R_AFTER_DROP,
+    R_LAND,
+    R_AFTER_LAND_SOUND,
+    R_AFTER_LEVEL_SOUND,
+    R_AFTER_PAUSE,
+    R_DEMO_SPAWN,
+    R_DEMO_ACT
+};
 
 void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bios_ticks)
 {
@@ -493,18 +544,29 @@ void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bio
     memcpy(sound_len, g->sound_len, sizeof sound_len);
     memset(g, 0, sizeof *g);
     g->rand_seed = seed;
-    g->drop_height = drop_height;   /* only play_piece resets it; the demo inherits it */
+    g->drop_height = drop_height; /* only play_piece resets it; the demo inherits it */
     memcpy(g->sound_len, sound_len, sizeof sound_len);
     g->setup = *s;
+    /* keep frontends honest: the original's menus never allow anything else */
+    int16_t *dims[3] = { &g->setup.len, &g->setup.wid, &g->setup.dep };
+    for (int i = 0; i < 3; i++) {
+        if (*dims[i] < bo_pit_min[i]) *dims[i] = bo_pit_min[i];
+        if (*dims[i] > bo_pit_max[i]) *dims[i] = bo_pit_max[i];
+    }
+    if (g->setup.blockset < 0 || g->setup.blockset > 2) g->setup.blockset = 0;
+    if (g->setup.level < 0 || g->setup.level > 9) g->setup.level = 0;
+    if (g->setup.rot_speed < 0 || g->setup.rot_speed > 2) g->setup.rot_speed = 1;
+    s = &g->setup;
     g->mode = mode;
-    g->fast_cpu = fast_cpu;
+    g->fast_cpu = fast_cpu ? 1 : 0;
+    fast_cpu = g->fast_cpu;
     g->bios_ticks = bios_ticks;
     g->level = s->level;
     g->sound_on = 1;
     g->ev_sound = -1;
-    g->move_steps = bo_move_steps[fast_cpu][s->rot_speed];   /* init_move_anim (5be3) */
+    g->move_steps = bo_move_steps[fast_cpu][s->rot_speed]; /* init_move_anim (5be3) */
     if (g->move_steps < 1) g->move_steps = 1;
-    g->rot_steps = bo_rot_steps[fast_cpu][s->rot_speed];      /* init_rot_anim (756c) */
+    g->rot_steps = bo_rot_steps[fast_cpu][s->rot_speed]; /* init_rot_anim (756c) */
     if (g->rot_steps < 1) g->rot_steps = 1;
     if (g->rot_steps > 15) g->rot_steps = 15;
     g->resume_at = R_NONE;
@@ -512,18 +574,25 @@ void bo_init(bo_game *g, const bo_setup *s, int mode, int fast_cpu, uint32_t bio
         demo_weights(g);
         g->state = BO_S_DEMO;
         g->resume_at = R_DEMO_SPAWN;
-        bo_frame(g);            /* run up to the first animation wait */
+        bo_frame(g); /* run up to the first animation wait */
         g->frame = 0;
         return;
     }
-    if (spawn_piece(g)) { g->state = BO_S_GAME_OVER; return; }
+    if (spawn_piece(g)) {
+        g->state = BO_S_GAME_OVER;
+        return;
+    }
     piece_prologue(g);
     g->state = BO_S_PLAY;
 }
 
 void bo_fill_cell(bo_game *g, int x, int y, int z)
 {
-    if (!g->cell[x][y][z]) { g->cell[x][y][z] = 1; g->layer_count[z]++; }
+    if (x < 0 || y < 0 || z < 0 || x >= g->setup.len || y >= g->setup.wid || z >= g->setup.dep) return;
+    if (!g->cell[x][y][z]) {
+        g->cell[x][y][z] = 1;
+        g->layer_count[z]++;
+    }
 }
 
 int bo_frame(bo_game *g)
@@ -533,55 +602,85 @@ int bo_frame(bo_game *g)
     g->ev_landed = g->ev_spawned = g->ev_cleared = 0;
 
     switch (g->state) {
-    case BO_S_PLAY:      goto frame_start;
+    case BO_S_PLAY: goto frame_start;
     case BO_S_DROP_WAIT:
     case BO_S_LAND_WAIT: goto wait_frame;
-    case BO_S_SOUND:     goto sound;
-    case BO_S_PAUSED:    goto paused;
+    case BO_S_SOUND: goto sound;
+    case BO_S_PAUSED: goto paused;
     case BO_S_GAME_OVER: goto game_over;
-    case BO_S_DEMO:      goto demo;
-    default:             return g->state;
+    case BO_S_DEMO: goto demo;
+    default: return g->state;
     }
 
-frame_start:                                        /* LAB_563e */
+frame_start: /* LAB_563e */
     g->frame++;
     anim_move_step(g);
     anim_rot_step(g);
 
-key_loop:                                           /* LAB_5831 */
+key_loop: /* LAB_5831 */
     while ((k = pop_key(g)) != -1) {
         switch (k) {
-        case 'o': case 'O': g->sound_on = !g->sound_on; break;
-        case 'p': case 'P':
-            if (g->mode == BO_MODE_GAME) {           /* 6106 */
+        case 'o':
+        case 'O': g->sound_on = !g->sound_on; break;
+        case 'p':
+        case 'P':
+            if (g->mode == BO_MODE_GAME) { /* 6106 */
                 g->paused_countdown = g->countdown;
                 g->state = BO_S_PAUSED;
                 return g->state;
             }
             break;
-        case BO_K_ESC: g->aborted = 1; g->state = BO_S_DONE; return g->state;
+        case BO_K_ESC:
+            g->aborted = 1;
+            g->state = BO_S_DONE;
+            return g->state;
         case BO_K_SPACE:
             g->drop_height = g->pose.a[2].pos;
-            g->h -= (int16_t)hard_drop(g);
+            g->h = (int16_t)(g->h - hard_drop(g));
             g->resume_at = R_AFTER_DROP;
-            if (anims_busy(g)) { g->state = BO_S_DROP_WAIT; return g->state; }
+            if (anims_busy(g)) {
+                g->state = BO_S_DROP_WAIT;
+                return g->state;
+            }
         after_drop:
-            if (!g->dropped) { g->countdown = 4; g->dropped = 1; }
+            if (!g->dropped) {
+                g->countdown = 4;
+                g->dropped = 1;
+            }
             break;
-        case 'q': case 'Q': rotate_piece(g, 0); break;
-        case 'w': case 'W': rotate_piece(g, 1); break;
-        case 'e': case 'E': rotate_piece(g, 2); break;
-        case 'a': case 'A': rotate_piece(g, 3); break;
-        case 's': case 'S': rotate_piece(g, 4); break;
-        case 'd': case 'D': rotate_piece(g, 5); break;
+        case 'q':
+        case 'Q': rotate_piece(g, 0); break;
+        case 'w':
+        case 'W': rotate_piece(g, 1); break;
+        case 'e':
+        case 'E': rotate_piece(g, 2); break;
+        case 'a':
+        case 'A': rotate_piece(g, 3); break;
+        case 's':
+        case 'S': rotate_piece(g, 4); break;
+        case 'd':
+        case 'D': rotate_piece(g, 5); break;
         case BO_K_RIGHT: move_piece(g, 1, 0, 0); break;
-        case BO_K_LEFT:  move_piece(g, -1, 0, 0); break;
-        case BO_K_UP:    move_piece(g, 0, 1, 0); break;
-        case BO_K_DOWN:  move_piece(g, 0, -1, 0); break;
-        case BO_K_HOME:  move_piece(g, -1, 0, 0); move_piece(g, 0, 1, 0); break;
-        case BO_K_END:   move_piece(g, -1, 0, 0); move_piece(g, 0, -1, 0); break;
-        case BO_K_PGUP:  move_piece(g, 1, 0, 0); move_piece(g, 0, 1, 0); break;
-        case BO_K_PGDN:  move_piece(g, 1, 0, 0); move_piece(g, 0, -1, 0); break;
+        case BO_K_LEFT: move_piece(g, -1, 0, 0); break;
+        case BO_K_UP: move_piece(g, 0, 1, 0); break;
+        case BO_K_DOWN: move_piece(g, 0, -1, 0); break;
+        case BO_K_HOME:
+            move_piece(g, -1, 0, 0);
+            move_piece(g, 0, 1, 0);
+            break;
+        case BO_K_END:
+            move_piece(g, -1, 0, 0);
+            move_piece(g, 0, -1, 0);
+            break;
+        case BO_K_PGUP:
+            move_piece(g, 1, 0, 0);
+            move_piece(g, 0, 1, 0);
+            break;
+        case BO_K_PGDN:
+            move_piece(g, 1, 0, 0);
+            move_piece(g, 0, -1, 0);
+            break;
+        default: break; /* other keys are ignored */
         }
     }
 
@@ -596,16 +695,22 @@ key_loop:                                           /* LAB_5831 */
             g->h--;
             for (int i = 0; i < bo_ncubes(g); i++) {
                 transform(&g->pose, cube(g, i), v);
-                if (v[2] < g->h) return g->state;  /* still entering the pit */
+                if (v[2] < g->h) return g->state; /* still entering the pit */
             }
         }
     }
-    if (move_piece(g, 0, 0, -1) == 0) { g->dropped = 0; return g->state; }
+    if (move_piece(g, 0, 0, -1) == 0) {
+        g->dropped = 0;
+        return g->state;
+    }
     g->resume_at = R_LAND;
-    if (anims_busy(g)) { g->state = BO_S_LAND_WAIT; return g->state; }
+    if (anims_busy(g)) {
+        g->state = BO_S_LAND_WAIT;
+        return g->state;
+    }
     goto land;
 
-wait_frame:                                         /* wait_animations (5dd6) */
+wait_frame: /* wait_animations (5dd6) */
     g->frame++;
     anim_move_step(g);
     anim_rot_step(g);
@@ -616,24 +721,40 @@ wait_frame:                                         /* wait_animations (5dd6) */
 
 land:
     land_lock(g);
-    if (g->sound_ticks) { g->resume_at = R_AFTER_LAND_SOUND; g->state = BO_S_SOUND; return g->state; }
+    if (g->sound_ticks) {
+        g->resume_at = R_AFTER_LAND_SOUND;
+        g->state = BO_S_SOUND;
+        return g->state;
+    }
 after_land_sound:
     add_score(g);
     if (g->mode == BO_MODE_DEMO) goto demo_spawn;
-    if (spawn_piece(g)) { flush_keys(g); g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
+    if (spawn_piece(g)) {
+        flush_keys(g);
+        g->state = BO_S_GAME_OVER;
+        g->ticks = 0;
+        return g->state;
+    }
     piece_prologue(g);
-    if (g->sound_ticks) { g->resume_at = R_AFTER_LEVEL_SOUND; g->state = BO_S_SOUND; return g->state; }
+    if (g->sound_ticks) {
+        g->resume_at = R_AFTER_LEVEL_SOUND;
+        g->state = BO_S_SOUND;
+        return g->state;
+    }
     g->state = BO_S_PLAY;
     return g->state;
 
-sound:                  /* the original blocks in the speaker routine; ticks keep running */
+sound: /* the original blocks in the speaker routine; ticks keep running */
     if (g->sound_ticks > 0) return g->state;
     g->state = g->mode == BO_MODE_DEMO ? BO_S_DEMO : BO_S_PLAY;
     if (g->resume_at == R_AFTER_LAND_SOUND) goto after_land_sound;
-    if (g->resume_at == R_AFTER_LEVEL_SOUND) { g->countdown = g->mode == BO_MODE_PRACTICE ? 0 : g->delay; return g->state; }
+    if (g->resume_at == R_AFTER_LEVEL_SOUND) {
+        g->countdown = (int16_t)(g->mode == BO_MODE_PRACTICE ? 0 : g->delay);
+        return g->state;
+    }
     return g->state;
 
-paused:                                             /* 6106 */
+paused: /* 6106 */
     while ((k = pop_key(g)) != -1)
         if (k == 'p' || k == 'P') {
             g->countdown = g->paused_countdown;
@@ -642,7 +763,7 @@ paused:                                             /* 6106 */
         }
     return g->state;
 
-demo:                   /* 162d: each action is followed by wait_animations */
+demo: /* 162d: each action is followed by wait_animations */
     if (g->resume_at == R_DEMO_SPAWN) goto demo_spawn;
     g->frame++;
     anim_move_step(g);
@@ -650,14 +771,18 @@ demo:                   /* 162d: each action is followed by wait_animations */
     if (anims_busy(g)) return g->state;
 demo_act:
     for (;;) {
-        if (g->demo_phase == 0) {                       /* rotations */
+        if (g->demo_phase == 0) { /* rotations */
             if (g->demo_ri < demo_seqs[g->demo_seq]) {
                 rotate_piece(g, demo_seqs[g->demo_seq + 1 + g->demo_ri++]);
-            } else { g->demo_phase = 1; continue; }
-        } else if (g->demo_phase == 1) {                /* step towards the target */
+            } else {
+                g->demo_phase = 1;
+                continue;
+            }
+        } else if (g->demo_phase == 1) { /* step towards the target */
             int sx = g->demo_dx > 0 ? 1 : g->demo_dx < 0 ? -1 : 0;
             int sy = g->demo_dy > 0 ? 1 : g->demo_dy < 0 ? -1 : 0;
-            g->demo_dx -= sx; g->demo_dy -= sy;
+            g->demo_dx = (int16_t)(g->demo_dx - sx);
+            g->demo_dy = (int16_t)(g->demo_dy - sy);
             move_piece(g, sx, sy, 0);
             if (!sx && !sy) g->demo_phase = 2;
         } else if (g->demo_phase == 2) {
@@ -665,12 +790,20 @@ demo_act:
             g->demo_phase = 3;
         } else {
             land_lock(g);
-            if (g->sound_ticks) { g->resume_at = R_AFTER_LAND_SOUND; g->state = BO_S_SOUND; return g->state; }
+            if (g->sound_ticks) {
+                g->resume_at = R_AFTER_LAND_SOUND;
+                g->state = BO_S_SOUND;
+                return g->state;
+            }
             add_score(g);
         demo_spawn:
             g->resume_at = R_DEMO_ACT;
             g->state = BO_S_DEMO;
-            if (spawn_piece(g)) { g->state = BO_S_GAME_OVER; g->ticks = 0; return g->state; }
+            if (spawn_piece(g)) {
+                g->state = BO_S_GAME_OVER;
+                g->ticks = 0;
+                return g->state;
+            }
             demo_plan(g);
             continue;
         }
@@ -678,12 +811,15 @@ demo_act:
     }
     goto demo_act;
 
-game_over:                                          /* game_over (3d2d) */
+game_over: /* game_over (3d2d) */
     if (g->mode == BO_MODE_DEMO) {
         if (pop_key(g) != -1 || g->ticks >= 0x5b) g->state = BO_S_DONE;
         return g->state;
     }
     while ((k = pop_key(g)) != -1)
-        if (k == BO_K_ENTER || k == BO_K_ESC) { g->state = BO_S_DONE; break; }
+        if (k == BO_K_ENTER || k == BO_K_ESC) {
+            g->state = BO_S_DONE;
+            break;
+        }
     return g->state;
 }

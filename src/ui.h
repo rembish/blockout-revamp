@@ -8,7 +8,7 @@
 
 typedef struct {
     char label[80];
-    char value[40];             /* shown right-aligned with < > when adjustable */
+    char value[40]; /* shown right-aligned with < > when adjustable */
     int adjustable;
     int disabled;
     char hotkey;
@@ -26,9 +26,9 @@ typedef struct {
 void ui_menu_clear(ui_menu *m, const char *title);
 ui_item *ui_add(ui_menu *m, char hotkey, const char *fmt, ...);
 void ui_menu_draw(ui_menu *m, box area, float t);
-int  ui_hit(const ui_menu *m, float x, float y);    /* item under point or -1 */
+int ui_hit(const ui_menu *m, float x, float y); /* item under point or -1 */
 
-void ui_dim(box area, float a);
+void ui_dim(box area, float alpha);
 void ui_text_panel(box area, const char *title, const char *const *lines, int n, float t);
 
 #endif
