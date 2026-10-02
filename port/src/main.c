@@ -662,8 +662,8 @@ static void frame(void)
    [--seed S] [--setup l,w,d,set,lvl,rot]: render headless, save a screenshot and exit. */
 static int shot_mode(int argc, char **argv)
 {
-    const char *out = NULL, *keys = "", *screen = "game";
-    long frames = 600;
+    const char *out = NULL, *keys = "", *screen = "game", *record = NULL;
+    long frames = 600, every = 3;
     unsigned seed = 1;
     for (int i = 1; i + 1 < argc; i++) {
         if (!strcmp(argv[i], "--shot")) out = argv[++i];
@@ -671,6 +671,8 @@ static int shot_mode(int argc, char **argv)
         else if (!strcmp(argv[i], "--keys")) keys = argv[++i];
         else if (!strcmp(argv[i], "--seed")) seed = (unsigned)atol(argv[++i]);
         else if (!strcmp(argv[i], "--screen")) screen = argv[++i];
+        else if (!strcmp(argv[i], "--record")) record = argv[++i];    /* dir for frame BMPs */
+        else if (!strcmp(argv[i], "--every")) every = atol(argv[++i]);
         else if (!strcmp(argv[i], "--setup")) sscanf(argv[++i], "%hd,%hd,%hd,%hd,%hd,%hd", &A.setup.len,
                     &A.setup.wid, &A.setup.dep, &A.setup.blockset, &A.setup.level, &A.setup.rot_speed);
     }
@@ -692,7 +694,23 @@ static int shot_mode(int argc, char **argv)
                 k += n; if (*k == ',') k++;
             }
             bo_frame(&A.game);
+            if (record && f % every == 0) {
+                static long n;
+                char fn[512];
+                A.frames_done = f;
+                A.now = 1.0 + f / A.logic_fps;
+                A.t0 = 1.0;
+                if (A.game.ev_cleared) A.clear_flash = 1;
+                A.clear_flash *= 0.75f;
+                render();
+                SDL_Surface *sf = SDL_CreateRGBSurfaceWithFormat(0, A.w, A.h, 32, SDL_PIXELFORMAT_ARGB8888);
+                SDL_RenderReadPixels(A.ren, NULL, SDL_PIXELFORMAT_ARGB8888, sf->pixels, sf->pitch);
+                snprintf(fn, sizeof fn, "%s/f%06ld.bmp", record, n++);
+                SDL_SaveBMP(sf, fn);
+                SDL_FreeSurface(sf);
+            }
         }
+        if (record) { printf("frames=%d\n", A.game.frame); return 1; }
         A.frames_done = frames;
         A.t0 = A.now - frames / A.logic_fps;
         printf("state=%d score=%ld cubes=%ld level=%d\n", A.game.state, (long)A.game.score,

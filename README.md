@@ -5,6 +5,11 @@ This repo holds the original DOS release and a reverse-engineered port of it to
 portable C + SDL2, so it runs natively on Linux, Windows and macOS, and in a browser
 via WebAssembly.
 
+![The original 1989 demo AI playing a 3x3x10 pit until game over](docs/demo-3x3x10.gif)
+
+*The original demo AI, ported from the 1989 code, playing 3-D Mania (3×3×10, basic set)
+until the pit fills up. [Full-quality video](docs/demo-3x3x10.mp4).*
+
 The goal has two halves:
 
 1. **Game logic: decompiled faithfully.** Piece sets, the random number generator and
@@ -78,7 +83,8 @@ cd port/build-web && python3 -m http.server   # open http://localhost:8000/block
 ```
 
 The web build is three static files (`blockout.html`, `.js`, `.wasm`) and can be hosted
-anywhere.
+anywhere. `.github/workflows/pages.yml` builds it on every push to `main` and publishes it
+with GitHub Pages (enable it under Settings → Pages → Source: GitHub Actions).
 
 ## How faithful is it?
 
