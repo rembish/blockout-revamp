@@ -16,6 +16,7 @@
 #include "gfx.h"
 #include "hof.h"
 #include "store.h"
+#include "touch.h"
 #include "ui.h"
 #include "view.h"
 
@@ -26,6 +27,21 @@ extern const int font_ttf_len;
 #define REPEAT_DELAY 0.5
 #define REPEAT_RATE  (1.0 / 10.9)
 #define IDLE_DEMO    60.0 /* menus start the demo after 0x444 ticks */
+#define REPO_URL     "https://github.com/rembish/blockout-revamp"
+
+#ifdef __EMSCRIPTEN__
+/* clang-format off */
+EM_JS(int, js_coarse_pointer, (void), {
+    return (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? 1 : 0;
+});
+EM_JS(int, js_prompt_name, (char *out, int max), {
+    var s = window.prompt('You made it into the Hall of Fame! Your name:', '') || '';
+    s = s.replace(/[^ -~]/g, '').slice(0, max);
+    stringToUTF8(s, out, max + 1);
+    return s.length;
+});
+/* clang-format on */
+#endif
 
 enum scr { S_MAIN, S_CHOOSE, S_CHANGE, S_PIT, S_LEVEL, S_QUIT, S_GAME, S_HOF, S_HELP };
 enum hof_mode { HOF_VIEW, HOF_ENTRY };
@@ -56,6 +72,10 @@ static struct {
     bo_setup setup;
     int practice, demo;
     float clear_flash;
+
+    /* touch */
+    int touch;
+    int64_t held_finger;
 
     /* typematic */
     uint16_t held_key;
@@ -177,6 +197,7 @@ static void start_game(int mode)
     A.t0 = A.now;
     A.ticks_done = A.frames_done = 0;
     A.held_key = 0;
+    touch_release_all();
     A.scr = S_GAME;
     A.last_game_valid = 1;
 }
@@ -209,6 +230,16 @@ static void game_finished(void)
         A.name[0] = 0;
         audio_play(BO_SND_TUNE);
         SDL_StartTextInput();
+#ifdef __EMSCRIPTEN__
+        if (A.touch) { /* no physical keyboard: ask the browser */
+            js_prompt_name(A.name, HOF_NAME);
+            hof_set_name(&A.hof, A.hof_row, A.name);
+            if (!hof_save(&A.hof)) toast("Could not save the hall of fame");
+            A.hi_valid = 0;
+            A.hof_mode = HOF_VIEW;
+            SDL_StopTextInput();
+        }
+#endif
     } else {
         A.hof_mode = HOF_VIEW;
     }
@@ -244,6 +275,7 @@ static void build_menu(void)
         ui_add(m, 'D', "Demo");
         ui_add(m, 'H', "Help");
         ui_add(m, 'F', "Hall of Fame");
+        ui_add(m, 'G', "Source Code");
 #ifndef __EMSCRIPTEN__
         ui_add(m, 'Q', "Quit Game");
 #endif
@@ -361,7 +393,9 @@ static void activate(int i)
             start_game(BO_MODE_DEMO);
         else if (i == 5)
             enter_menu(S_HELP);
-        else if (i == 6) {
+        else if (i == 7) {
+            if (SDL_OpenURL(REPO_URL) != 0) toast(REPO_URL);
+        } else if (i == 6) {
             hof_load(&A.setup, &A.hof);
             A.hof_mode = HOF_VIEW;
             A.hof_row = -1;
@@ -697,6 +731,15 @@ static void render(void)
         }
         gfx_flush();
     }
+    {
+        view_layout_t L;
+        view_layout(A.w, A.h, &L);
+        int scr = !A.touch          ? TOUCH_NONE
+                  : A.scr == S_GAME ? (A.demo ? TOUCH_NONE : TOUCH_GAME)
+                                    : (A.scr == S_MAIN ? TOUCH_NONE : TOUCH_MENU);
+        touch_layout(&L, scr);
+        touch_draw(t);
+    }
     if (A.toast_until > A.now) {
         float s = pit.w * 0.04f;
         float tw = font_width(s, A.toast) + s * 2;
@@ -710,6 +753,51 @@ static void render(void)
 }
 
 /* ---- main loop -------------------------------------------------------- */
+
+static void set_touch(int on)
+{
+    A.touch = on;
+    view_set_touch(on);
+}
+
+static void finger_down(float nx, float ny, int64_t finger)
+{
+    if (!A.touch) set_touch(1);
+    audio_resume();
+    uint16_t key = touch_press(nx * (float)A.w, ny * (float)A.h, finger);
+    A.idle_since = A.now;
+    if (A.scr == S_GAME) {
+        if (A.demo) {
+            A.game.aborted = 1;
+            A.game.state = BO_S_DONE;
+            return;
+        }
+        if (!key) { /* a tap anywhere answers "press ENTER" / resumes a pause */
+            if (A.game.state == BO_S_GAME_OVER)
+                bo_key(&A.game, BO_K_ENTER);
+            else if (A.game.state == BO_S_PAUSED)
+                bo_key(&A.game, 'p');
+            return;
+        }
+        bo_key(&A.game, key);
+        A.held_key = key;
+        A.held_sym = SDLK_UNKNOWN;
+        A.held_finger = finger;
+        A.next_repeat = A.now + REPEAT_DELAY;
+        return;
+    }
+    if (key == BO_K_ESC) {
+        touch_release(finger);
+        if (A.scr == S_HOF && A.hof_mode == HOF_ENTRY) return;
+        back();
+    }
+}
+
+static void finger_up(int64_t finger)
+{
+    uint16_t key = touch_release(finger);
+    if (key && key == A.held_key && finger == A.held_finger) A.held_key = 0;
+}
 
 static void mouse(int x, int y, int click)
 {
@@ -769,9 +857,11 @@ static void frame(void)
                 menu_key(&e.key.keysym);
             break;
         case SDL_KEYUP:
-            if (e.key.keysym.sym == A.held_sym) A.held_key = 0;
+            if (e.key.keysym.sym == A.held_sym && A.held_sym != SDLK_UNKNOWN) A.held_key = 0;
             break;
         case SDL_TEXTINPUT: text_input(e.text.text); break;
+        case SDL_FINGERDOWN: finger_down(e.tfinger.x, e.tfinger.y, (int64_t)e.tfinger.fingerId); break;
+        case SDL_FINGERUP: finger_up((int64_t)e.tfinger.fingerId); break;
         case SDL_MOUSEMOTION: mouse(e.motion.x, e.motion.y, 0); break;
         case SDL_MOUSEBUTTONDOWN:
             audio_resume();
@@ -920,6 +1010,11 @@ int main(int argc, char **argv)
     load_setup();
     SDL_StopTextInput();
 
+#ifdef __EMSCRIPTEN__
+    set_touch(js_coarse_pointer());
+#endif
+    for (int i = 1; i < argc; i++)
+        if (!strcmp(argv[i], "--touch")) set_touch(1);
     if (shot_mode(argc, argv)) return 0;
     A.now = seconds();
     enter_menu(S_MAIN);

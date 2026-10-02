@@ -54,7 +54,9 @@ distributed. The files the tools were written against:
 
 ## Downloads
 
-- **Play in the browser:** the GitHub Pages build of this repository.
+- **Play in the browser:** <https://rembish.github.io/blockout-revamp/>. It works on phones and
+  tablets too: touch screens get an on-screen pad (8 directions, like the numpad), the six
+  rotation buttons and DROP, and the layout switches to portrait on narrow screens.
 - **Windows, macOS, Linux:** pick the latest release, or the artifacts of the newest
   "Binaries" workflow run under Actions. Every build is self-contained (SDL is linked in).
   - Windows: unzip and run `blockout.exe`.
@@ -73,6 +75,9 @@ distributed. The files the tools were written against:
 | Space | drop |
 | P | pause, O sound on/off, Esc abort |
 | F11 / Alt+Enter | fullscreen |
+
+On a touch screen the same actions are on-screen buttons; tap the pit to resume a pause or
+to continue after game over. `--touch` forces the touch layout on desktop.
 
 Menus follow the original (Start Game, Choose Setup, Write Setup, Practice Mode, Demo,
 Help), plus a Hall of Fame entry. Leaving a menu alone for a minute starts the demo, as

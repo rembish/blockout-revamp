@@ -29,7 +29,7 @@ elseif(APPLE)
   set(BO_GUI_FLAG MACOSX_BUNDLE)
 endif()
 
-add_executable(blockout ${BO_GUI_FLAG} src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c third_party/stb_truetype_impl.c ${FONT_C})
+add_executable(blockout ${BO_GUI_FLAG} src/main.c src/gfx.c src/font.c src/view.c src/ui.c src/audio.c src/store.c src/hof.c src/touch.c third_party/stb_truetype_impl.c ${FONT_C})
 target_link_libraries(blockout PRIVATE bocore)
 
 if(EMSCRIPTEN)

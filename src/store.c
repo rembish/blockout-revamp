@@ -6,6 +6,8 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 
+/* clang-format off */
+
 EM_JS(int, js_store_read, (const char *name, unsigned char *buf, int max), {
     try {
         var v = localStorage.getItem('blockout:' + UTF8ToString(name));
@@ -13,8 +15,7 @@ EM_JS(int, js_store_read, (const char *name, unsigned char *buf, int max), {
         var s = atob(v), n = Math.min(s.length, max);
         for (var i = 0; i < n; i++) HEAPU8[buf + i] = s.charCodeAt(i);
         return n;
-}
-catch(e) { return -1; }
+    } catch (e) { return -1; }
 });
 
 EM_JS(int, js_store_write, (const char *name, const unsigned char *buf, int len), {
@@ -23,10 +24,10 @@ EM_JS(int, js_store_write, (const char *name, const unsigned char *buf, int len)
         for (var i = 0; i < len; i++) s += String.fromCharCode(HEAPU8[buf + i]);
         localStorage.setItem('blockout:' + UTF8ToString(name), btoa(s));
         return len;
-}
-catch(e) { return -1; }
+    } catch (e) { return -1; }
 });
 
+/* clang-format on */
 void store_init(void) {}
 int store_read(const char *name, void *buf, int max) { return js_store_read(name, buf, max); }
 int store_write(const char *name, const void *buf, int len) { return js_store_write(name, buf, len); }

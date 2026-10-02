@@ -23,4 +23,13 @@ void view_background(int w, int h);
 void view_game(const bo_game *g, int w, int h, const view_fx *fx);
 void view_pit_box(int w, int h, box *pit, box *gauge, box *panel);
 
+typedef struct {
+    box pit, gauge, panel;
+    box left, right; /* touch control areas (empty when not in touch mode) */
+    int portrait;
+} view_layout_t;
+
+void view_set_touch(int on);
+void view_layout(int w, int h, view_layout_t *L);
+
 #endif

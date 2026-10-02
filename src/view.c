@@ -348,32 +348,75 @@ static void draw_piece(const bo_game *g, float lw, float frac, float t)
 
 /* ---- layout, gauge and panel ------------------------------------------- */
 
-void view_pit_box(int w, int h, box *pit, box *gauge, box *panel)
+static int touch_layout;
+
+void view_set_touch(int on) { touch_layout = on; }
+
+/* Landscape: [controls] gauge | pit | panel [controls]. Portrait (phones): gauge | pit on
+   top, a compact info strip below, touch controls underneath. */
+void view_layout(int w, int h, view_layout_t *L)
 {
+    memset(L, 0, sizeof *L);
+    L->portrait = h > w * 1.15f;
+    if (L->portrait) {
+        float m = w * 0.03f, gap = w * 0.02f, gw = w * 0.07f;
+        float S = w - 2 * m - gw - gap;
+        float strip = S * 0.16f;
+        float maxS = touch_layout ? h * 0.52f : h - 2 * m - strip - gap;
+        if (S > maxS) S = maxS;
+        strip = S * 0.16f;
+        float total_w = gw + gap + S, x = (w - total_w) / 2;
+        float content_h = S + gap + strip;
+        float y = touch_layout ? m : (h - content_h) / 2;
+        L->gauge = (box){ x, y, gw, S };
+        L->pit = (box){ x + gw + gap, y, S, S };
+        L->panel = (box){ x, y + S + gap, total_w, strip };
+        float cy = L->panel.y + strip + gap * 1.5f, ch = h - m - cy;
+        L->left = (box){ m, cy, (w - 2 * m) * 0.5f - gap / 2, ch };
+        L->right = (box){ w / 2.f + gap / 2, cy, (w - 2 * m) * 0.5f - gap / 2, ch };
+        return;
+    }
     float m = h * 0.04f;
     float S = h - 2 * m;
-    float gw = S * 0.075f, pw = S * 0.46f, gap = S * 0.03f;
-    float total = gw + gap + S + gap + pw;
+    float gw = S * 0.075f, pw = S * 0.46f, gap = S * 0.03f, cw = touch_layout ? S * 0.5f : 0;
+    float cgap = touch_layout ? gap : 0;
+    float total = cw + cgap + gw + gap + S + gap + pw + cgap + cw;
     if (total > w - 2 * m) {
         float k = (w - 2 * m) / total;
         S *= k;
         gw *= k;
         pw *= k;
         gap *= k;
+        cw *= k;
+        cgap *= k;
         total = w - 2 * m;
     }
     float x = (w - total) / 2, y = (h - S) / 2;
-    *gauge = (box){ x, y, gw, S };
-    *pit = (box){ x + gw + gap, y, S, S };
-    *panel = (box){ x + gw + gap + S + gap, y, pw, S };
+    L->left = (box){ x, y, cw, S };
+    x += cw + cgap;
+    L->gauge = (box){ x, y, gw, S };
+    L->pit = (box){ x + gw + gap, y, S, S };
+    L->panel = (box){ x + gw + gap + S + gap, y, pw, S };
+    L->right = (box){ L->panel.x + pw + cgap, y, cw, S };
 }
 
-static void draw_gauge(const bo_game *g, box b, float s)
+void view_pit_box(int w, int h, box *pit, box *gauge, box *panel)
+{
+    view_layout_t L;
+    view_layout(w, h, &L);
+    *pit = L.pit;
+    *gauge = L.gauge;
+    *panel = L.panel;
+}
+
+static void draw_gauge(const bo_game *g, box b, int with_level)
 {
     gfx_round_rect(b.x, b.y, b.w, b.h, b.w * 0.18f, C_PANEL);
-    float top = b.y + b.w * 1.25f, bot = b.y + b.h - b.w * 0.2f;
-    font_draw(b.x + b.w / 2, b.y + b.w * 0.18f, b.w * 0.30f, C_LABEL, ALIGN_CENTER, "LEVEL");
-    font_drawf(b.x + b.w / 2, b.y + b.w * 0.55f, b.w * 0.55f, C_VALUE, ALIGN_CENTER, "%d", g->level);
+    float top = b.y + (with_level ? b.w * 1.25f : b.w * 0.2f), bot = b.y + b.h - b.w * 0.2f;
+    if (with_level) {
+        font_draw(b.x + b.w / 2, b.y + b.w * 0.18f, b.w * 0.30f, C_LABEL, ALIGN_CENTER, "LEVEL");
+        font_drawf(b.x + b.w / 2, b.y + b.w * 0.55f, b.w * 0.55f, C_VALUE, ALIGN_CENTER, "%d", g->level);
+    }
     int D = g->setup.dep;
     if (D < 10) D = 10;
     float ch = (bot - top) / D, x0 = b.x + b.w * 0.2f, cw = b.w * 0.6f;
@@ -382,7 +425,6 @@ static void draw_gauge(const bo_game *g, box b, float s)
         rgba c = g->layer_count[z] ? layer_colors[z % 7] : rgba_mix(C_PANEL, C_EDGE, 0.35f);
         gfx_round_rect(x0, y + ch * 0.1f, cw, ch * 0.8f, ch * 0.18f, c);
     }
-    (void)s;
 }
 
 static void stat_box(box b, float y, float s, const char *label, const char *value, rgba vc)
@@ -423,6 +465,7 @@ static void draw_panel(const bo_game *g, box b)
     y += s * 2.2f;
     stat_box(b, y, s, "BLOCK SET", set_names[g->setup.blockset], rgb_hex(0xffb347, 1));
     y += s * 2.4f;
+    if (touch_layout) return; /* keyboard hints make no sense on a touch screen */
     float ks = s * 0.36f;
     rgba kc = rgba_alpha(C_LABEL, 0.75f);
     font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "ARROWS move   SPACE drop");
@@ -432,18 +475,48 @@ static void draw_panel(const bo_game *g, box b)
     font_draw(b.x + b.w / 2, y, ks, kc, ALIGN_CENTER, "P pause   O sound   ESC quit");
 }
 
+/* portrait: one row of small stat cells */
+static void draw_panel_compact(const bo_game *g, box b)
+{
+    gfx_round_rect(b.x, b.y, b.w, b.h, b.h * 0.2f, C_PANEL);
+    char v[5][32];
+    static const char *labels[5] = { "LEVEL", "SCORE", "CUBES", "HIGH", "PIT" };
+    snprintf(v[0], sizeof v[0], "%d", g->level);
+    snprintf(v[1], sizeof v[1], "%ld", (long)g->score);
+    snprintf(v[2], sizeof v[2], "%ld", (long)g->cubes_played);
+    snprintf(v[3], sizeof v[3], "%ld", (long)g->hiscore);
+    snprintf(v[4], sizeof v[4], "%dx%dx%d %c", g->setup.len, g->setup.wid, g->setup.dep,
+             set_names[g->setup.blockset][0]);
+    static const float wk[5] = { 0.12f, 0.22f, 0.18f, 0.22f, 0.26f };
+    float x = b.x, s = b.h * 0.3f;
+    for (int i = 0; i < 5; i++) {
+        float cw = b.w * wk[i];
+        font_draw(x + cw / 2, b.y + b.h * 0.12f, s * 0.75f, C_LABEL, ALIGN_CENTER, labels[i]);
+        font_draw(x + cw / 2, b.y + b.h * 0.45f, s * 1.15f,
+                  i == 1   ? C_ACCENT
+                  : i == 4 ? rgb_hex(0xffb347, 1)
+                           : C_VALUE,
+                  ALIGN_CENTER, v[i]);
+        x += cw;
+    }
+}
+
 void view_background(int w, int h) { gfx_rect_v(0, 0, w, h, rgb_hex(0x0a1024, 1), rgb_hex(0x02030a, 1)); }
 
 void view_game(const bo_game *g, int w, int h, const view_fx *fx)
 {
-    box pit, gauge, panel;
-    view_pit_box(w, h, &pit, &gauge, &panel);
+    view_layout_t L;
+    view_layout(w, h, &L);
+    box pit = L.pit;
     float lw = pit.w / 600.f;
     if (lw < 1) lw = 1;
     proj_setup(g, pit);
     view_background(w, h);
-    draw_gauge(g, gauge, lw);
-    draw_panel(g, panel);
+    draw_gauge(g, L.gauge, !L.portrait);
+    if (L.portrait)
+        draw_panel_compact(g, L.panel);
+    else
+        draw_panel(g, L.panel);
     draw_pit(g, lw);
     draw_settled(g, lw, fx->clear_flash);
     if (g->state != BO_S_GAME_OVER && g->state != BO_S_DONE) draw_piece(g, lw, fx->frac, fx->time);
